@@ -1,0 +1,244 @@
+#a_04_prepPM25dataset
+#end all, clear all
+graphics.off()
+rm(list=ls())
+
+getwd()
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(lubridate)
+
+# Load Kamloops and Kelowna hourly PM2.5 datasets
+load("kamloops_hourly.RData")
+load("kelowna_hourly.RData")
+
+# Ensure Date column is in POSIXct format
+kamloops_hourly$Date <- as.POSIXct(kamloops_hourly$Date, format="%Y-%m-%d %H:%M:%S")
+kelowna_hourly$Date <- as.POSIXct(kelowna_hourly$Date, format="%Y-%m-%d %H:%M:%S")
+
+# Define sampler periods for Kamloops
+sampler_periods_kamloops <- data.frame(
+  Sampler_ID = c("Kam_001", "Kam_002", "Kam_003", "Kam_004", "Kam_005", "Kam_006", "Kam_007",
+                 "Kam_008", "Kam_009", "Kam_010", "Kam_011", "Kam_012", "Kam_013", "Kam_014"),
+  Start_Date = as.POSIXct(c("2024-03-22 15:00", "2024-03-22 15:00", "2024-04-12 14:30", "2024-05-03 14:30", 
+                            "2024-05-24 14:30", "2024-06-12 10:40", "2024-07-03 14:00", "2024-07-10 14:00", 
+                            "2024-07-17 15:00", "2024-07-24 14:40", "2024-08-08 14:00", "2024-08-14 10:38", 
+                            "2024-09-04 10:18", "2024-09-04 10:18")),
+  End_Date = as.POSIXct(c("2024-04-12 14:00", "2024-04-12 14:00", "2024-05-03 14:00", "2024-05-24 14:30", 
+                          "2024-06-12 10:35", "2024-07-03 14:00", "2024-07-10 14:00", "2024-07-17 15:00", 
+                          "2024-07-24 14:20", "2024-08-08 13:55", "2024-08-14 10:27", "2024-09-04 10:11", 
+                          "2024-09-25 10:23", "2024-09-25 10:23")))
+
+# Define sampler periods for Kelowna
+sampler_periods_kelowna <- data.frame(
+  Sampler_ID = c("Kel_001", "Kel_002", "Kel_003", "Kel_004", "Kel_005", "Kel_006", "Kel_007",
+                 "Kel_008", "Kel_009", "Kel_010", "Kel_011", "Kel_012", "Kel_013", "Kel_014"),
+  Start_Date = as.POSIXct(c("2024-03-22 15:00", "2024-03-22 15:00", "2024-04-12 14:30", "2024-05-03 14:30", 
+                            "2024-05-24 14:30", "2024-06-12 10:40", "2024-07-03 14:00", "2024-07-10 14:00", 
+                            "2024-07-17 15:00", "2024-07-24 14:40", "2024-08-08 14:00", "2024-08-14 10:38", 
+                            "2024-09-04 10:18", "2024-09-04 10:18")),
+  End_Date = as.POSIXct(c("2024-04-12 14:00", "2024-04-12 14:00", "2024-05-03 14:00", "2024-05-24 14:30", 
+                          "2024-06-12 10:35", "2024-07-03 14:00", "2024-07-10 14:00", "2024-07-17 15:00", 
+                          "2024-07-24 14:20", "2024-08-08 13:55", "2024-08-14 10:27", "2024-09-04 10:11", 
+                          "2024-09-25 10:23", "2024-09-25 10:23")))
+
+# Function to calculate PM2.5 averages per sampler period
+calculate_avg_pm25 <- function(data, sampler_periods) {
+  results <- data.frame(Sampler_ID = sampler_periods$Sampler_ID, Avg_PM25 = NA)
+  
+  for (i in 1:nrow(sampler_periods)) {
+    subset_data <- data %>%
+      filter(Date >= sampler_periods$Start_Date[i] & Date <= sampler_periods$End_Date[i])
+    
+    if (nrow(subset_data) > 0) {
+      results$Avg_PM25[i] <- mean(subset_data$raw_value, na.rm = TRUE)
+    } else {
+      results$Avg_PM25[i] <- NA
+    }
+  }
+  return(results)
+}
+
+# Calculate averages for Kamloops and Kelowna
+kamloops_hourly_avg <- calculate_avg_pm25(kamloops_hourly, sampler_periods_kamloops)
+kelowna_hourly_avg <- calculate_avg_pm25(kelowna_hourly, sampler_periods_kelowna)
+
+# View results
+print(kamloops_hourly_avg)
+# Sampler_ID  Avg_PM25
+#1     Kam_001  4.685230
+#2     Kam_002  4.685230
+#3     Kam_003  3.945002
+#4     Kam_004  5.065558
+#5     Kam_005  3.622345
+#6     Kam_006  4.249017
+#7     Kam_007  7.633309
+#8     Kam_008  8.116621
+#9     Kam_009 18.342336
+#10    Kam_010 11.074455
+#11    Kam_011 14.816261
+#12    Kam_012  7.904122
+#13    Kam_013  7.021826
+#14    Kam_014  7.021826
+print(kelowna_hourly_avg)
+#  Sampler_ID  Avg_PM25
+#1     Kel_001  3.038610
+#2     Kel_002  3.038610
+#3     Kel_003  2.604575
+#4     Kel_004  3.043440
+#5     Kel_005  2.357240
+#6     Kel_006  2.870238
+#7     Kel_007  7.622819
+#8     Kel_008  6.681078
+#9     Kel_009 11.355488
+#10    Kel_010  7.841040
+#11    Kel_011 12.484175
+#12    Kel_012  5.831251
+#13    Kel_013  5.074739
+#14    Kel_014  5.074739
+
+#-------------------------------------------
+# CREATE PM2.5 dataset with hourly PM2.5 data, WFS identification, and assigned sampler
+# Ensure Date column is in POSIXct format
+kamloops_hourly$Date <- as.POSIXct(kamloops_hourly$Date, format="%Y-%m-%d %H:%M:%S")
+kelowna_hourly$Date <- as.POSIXct(kelowna_hourly$Date, format="%Y-%m-%d %H:%M:%S")
+
+# Define start and end timestamps for subsetting
+start_time <- as.POSIXct("2024-03-22 15:00", format="%Y-%m-%d %H:%M")
+end_time <- as.POSIXct("2024-09-25 11:00", format="%Y-%m-%d %H:%M")
+
+# Subset datasets to match sampler period
+kamloops_hourly <- kamloops_hourly %>%
+  filter(Date >= start_time & Date <= end_time)
+
+kelowna_hourly <- kelowna_hourly %>%
+  filter(Date >= start_time & Date <= end_time)
+
+# Define sampler periods for Kamloops
+sampler_periods_kamloops <- data.frame(
+  Sampler_ID = c("Kam_001", "Kam_002", "Kam_003", "Kam_004", "Kam_005", "Kam_006", "Kam_007",
+                 "Kam_008", "Kam_009", "Kam_010", "Kam_011", "Kam_012", "Kam_013", "Kam_014"),
+  Start_Date = as.POSIXct(c("2024-03-22 15:00", "2024-03-22 15:00", "2024-04-12 14:30", "2024-05-03 14:30", 
+                            "2024-05-24 14:30", "2024-06-12 10:40", "2024-07-03 14:00", "2024-07-10 14:00", 
+                            "2024-07-17 15:00", "2024-07-24 14:40", "2024-08-08 14:00", "2024-08-14 10:38", 
+                            "2024-09-04 10:18", "2024-09-04 10:18")),
+  End_Date = as.POSIXct(c("2024-04-12 14:00", "2024-04-12 14:00", "2024-05-03 14:00", "2024-05-24 14:30", 
+                          "2024-06-12 10:35", "2024-07-03 14:00", "2024-07-10 14:00", "2024-07-17 15:00", 
+                          "2024-07-24 14:20", "2024-08-08 13:55", "2024-08-14 10:27", "2024-09-04 10:11", 
+                          "2024-09-25 10:23", "2024-09-25 10:23")))
+
+# Define sampler periods for Kelowna
+sampler_periods_kelowna <- data.frame(
+  Sampler_ID = c("Kel_001", "Kel_002", "Kel_003", "Kel_004", "Kel_005", "Kel_006", "Kel_007",
+                 "Kel_008", "Kel_009", "Kel_010", "Kel_011", "Kel_012", "Kel_013", "Kel_014"),
+  Start_Date = as.POSIXct(c("2024-03-22 15:00", "2024-03-22 15:00", "2024-04-12 14:30", "2024-05-03 14:30", 
+                            "2024-05-24 14:30", "2024-06-12 10:40", "2024-07-03 14:00", "2024-07-10 14:00", 
+                            "2024-07-17 15:00", "2024-07-24 14:40", "2024-08-08 14:00", "2024-08-14 10:38", 
+                            "2024-09-04 10:18", "2024-09-04 10:18")),
+  End_Date = as.POSIXct(c("2024-04-12 14:00", "2024-04-12 14:00", "2024-05-03 14:00", "2024-05-24 14:30", 
+                          "2024-06-12 10:35", "2024-07-03 14:00", "2024-07-10 14:00", "2024-07-17 15:00", 
+                          "2024-07-24 14:20", "2024-08-08 13:55", "2024-08-14 10:27", "2024-09-04 10:11", 
+                          "2024-09-25 10:23", "2024-09-25 10:23")))
+
+# Function to assign sampler periods to hourly data
+assign_sampler_periods <- function(data, sampler_periods) {
+  data <- data %>%
+    mutate(Sampler_ID = sapply(Date, function(dt) {
+      period <- sampler_periods %>%
+        filter(dt >= Start_Date & dt <= End_Date)
+      if (nrow(period) == 1) {
+        return(period$Sampler_ID)
+      } else if (nrow(period) > 1) {
+        return(period$Sampler_ID[1]) # Pick first if multiple match
+      } else {
+        return(NA)
+      }
+    }))
+  return(data)
+}
+
+# Assign sampler periods to each hourly dataset
+kamloops_hourly <- assign_sampler_periods(kamloops_hourly, sampler_periods_kamloops)
+kelowna_hourly <- assign_sampler_periods(kelowna_hourly, sampler_periods_kelowna)
+
+# Define WFS days for Kamloops
+wfs_days_kamloops <- as.Date(c("2024-07-17", "2024-07-18", "2024-07-20", "2024-07-21", "2024-07-22", 
+                               "2024-07-27", "2024-08-03", "2024-08-04", "2024-08-11", "2024-08-13", 
+                               "2024-08-14", "2024-08-16", "2024-08-17", "2024-09-05", "2024-09-07", "2024-09-08"))
+
+# Define WFS days for Kelowna
+wfs_days_kelowna <- as.Date(c("2024-07-09", "2024-07-16", "2024-07-17", "2024-07-18", "2024-07-21", "2024-07-22", 
+                              "2024-07-28", "2024-08-03", "2024-08-04", "2024-08-05", "2024-08-06", "2024-08-09", 
+                              "2024-08-10", "2024-08-11", "2024-08-12", "2024-08-14", "2024-08-15", "2024-08-30", 
+                              "2024-09-07", "2024-09-08", "2024-09-09"))
+
+# Add WFS column to each dataset
+kamloops_hourly <- kamloops_hourly %>%
+  mutate(WFS = ifelse(as.Date(Date) %in% wfs_days_kamloops, "WFS", "no-WFS"))
+
+kelowna_hourly <- kelowna_hourly %>%
+  mutate(WFS = ifelse(as.Date(Date) %in% wfs_days_kelowna, "WFS", "no-WFS"))
+
+# Ensure 2024-07-17 in Kamloops is assigned to Kam_009
+kamloops_hourly <- kamloops_hourly %>%
+  mutate(Sampler_ID = ifelse(as.Date(Date) == "2024-07-17", "Kam_009", Sampler_ID))
+
+# Ensure 2024-08-14 in Kamloops is assigned to Kam_012
+kamloops_hourly <- kamloops_hourly %>%
+  mutate(Sampler_ID = ifelse(as.Date(Date) == "2024-08-14", "Kam_012", Sampler_ID))
+
+# Ensure 2024-07-17 in Kelowna is assigned to Kel_008
+kelowna_hourly <- kelowna_hourly %>%
+  mutate(Sampler_ID = ifelse(as.Date(Date) == "2024-07-17", "Kel_008", Sampler_ID))
+
+# Ensure 2024-08-14 in Kelowna is assigned to Kel_012
+kelowna_hourly <- kelowna_hourly %>%
+  mutate(Sampler_ID = ifelse(as.Date(Date) == "2024-08-14", "Kel_012", Sampler_ID))
+
+# View updates
+head(kamloops_hourly)
+head(kelowna_hourly)
+
+#Double-check that everyone worked properly --> counts of WFS days/sampler period
+# Count number of unique WFS days per sampler period for Kamloops
+wfs_days_per_sampler_kamloops <- kamloops_hourly %>%
+  filter(WFS == "WFS") %>%
+  mutate(WFS_Date = as.Date(Date)) %>%
+  distinct(Sampler_ID, WFS_Date) %>%
+  group_by(Sampler_ID) %>%
+  summarise(WFS_Day_Count = n(), .groups = "drop")
+
+print(wfs_days_per_sampler_kamloops)
+#CORRECT
+# Sampler_ID WFS_Day_Count
+#1 Kam_009                5
+#2 Kam_010                3
+#3 Kam_011                2
+#4 Kam_012                3
+#5 Kam_013                3
+
+# Count number of unique WFS days per sampler period for Kelowna
+wfs_days_per_sampler_kelowna <- kelowna_hourly %>%
+  filter(WFS == "WFS", !is.na(Sampler_ID)) %>%  # Exclude rows where Sampler_ID is NA
+  mutate(WFS_Date = as.Date(Date)) %>%
+  distinct(Sampler_ID, WFS_Date) %>%
+  group_by(Sampler_ID) %>%
+  summarise(WFS_Day_Count = n(), .groups = "drop")
+
+print(wfs_days_per_sampler_kelowna)
+#CORRECT
+#Sampler_ID WFS_Day_Count
+#1 Kel_007                1
+#2 Kel_008                2
+#3 Kel_009                3
+#4 Kel_010                5
+#5 Kel_011                4
+#6 Kel_012                3
+#7 Kel_013                3
+
+# Save updated datasets
+save(kamloops_hourly, file = "kamloops_hourly_updated.RData")
+save(kelowna_hourly, file = "kelowna_hourly_updated.RData")

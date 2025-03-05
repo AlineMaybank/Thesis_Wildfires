@@ -1,0 +1,693 @@
+#Thesis data analysis - PM2.5
+#end all, clear all
+graphics.off()
+rm(list=ls())
+
+#Install and laod packages
+library(dplyr)
+library(sf)
+library(ggplot2)
+
+#PM2.5 data analysis
+# Load daily PM2.5 data
+load("pm25_data_daily.RData")
+
+#Check SiteID value
+unique(pm25_data_daily$SiteID)
+#"Kamloops" "Kelowna" 
+
+#Convert SiteID to a dataframe
+if ("sf" %in% class(pm25_data_daily)) {
+  pm25_data_daily <- pm25_data_daily %>% st_drop_geometry()}
+
+class(pm25_data_daily)
+
+
+#Ensure SiteID is a character
+pm25_data_daily$SiteID <- as.character(pm25_data_daily$SiteID)
+
+#Split the daily PM2.5 data based on SiteID
+kelowna_daily <- pm25_data_daily %>% filter(SiteID == "Kelowna")
+kamloops_daily <- pm25_data_daily %>% filter(SiteID == "Kamloops")
+
+#Load hourly PM2.5 data
+load("pm25_data_hourly.RData")
+
+#Check SiteID value
+unique(pm25_data_hourly$SiteID)
+#"Kamloops" "Kelowna" 
+
+#Convert SiteID to a dataframe
+if ("sf" %in% class(pm25_data_hourly)) {
+  pm25_data_hourly <- pm25_data_hourly %>% st_drop_geometry()}
+
+#Ensure SiteID is a character
+pm25_data_hourly$SiteID <- as.character(pm25_data_hourly$SiteID)
+
+#Split the hourly PM2.5 data based on SiteID
+kelowna_hourly <- pm25_data_hourly %>% filter(SiteID == "Kelowna")
+kamloops_hourly <- pm25_data_hourly %>% filter(SiteID == "Kamloops")
+
+class(pm25_data_daily$Date)
+#"Date"
+
+# Convert Date to Date class for daily data
+kelowna_daily$Date <- as.Date(kelowna_daily$Date)
+kamloops_daily$Date <- as.Date(kamloops_daily$Date)
+
+# Convert Date to POSIXct (datetime) for hourly data
+kelowna_hourly$Date <- as.POSIXct(kelowna_hourly$Date, format="%Y-%m-%d %H:%M:%S")
+kamloops_hourly$Date <- as.POSIXct(kamloops_hourly$Date, format="%Y-%m-%d %H:%M:%S")
+
+#Create a time-series for Kelowna daily
+ggplot(kelowna_daily, aes(x = Date, y = PM25)) +
+  geom_line(color = "black") +
+  labs(title = "Daily PM2.5 Concentration in Kelowna",
+       x = "Date", y = "PM2.5 (µg/m³)") +
+  theme_minimal()
+
+#Create a time-series for Kamloops daily
+ggplot(kamloops_daily, aes(x = Date, y = PM25)) +
+  geom_line(color = "black") +
+  labs(title = "Daily PM2.5 Concentration in Kamloops",
+       x = "Date", y = "PM2.5 (µg/m³)") +
+  theme_minimal()
+
+#Time-series of Kelowna and Kamloops Daily (on same graph)
+# Combine daily datasets
+daily_combined <- rbind(
+  kelowna_daily %>% mutate(Location = "Kelowna"),
+  kamloops_daily %>% mutate(Location = "Kamloops"))
+
+# Plot daily PM2.5 for both locations
+ggplot(daily_combined, aes(x = Date, y = PM25, color = Location, linetype = Location)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("Kelowna" = "blue", "Kamloops" = "black")) +  # Custom colors
+  scale_linetype_manual(values = c("Kelowna" = "solid", "Kamloops" = "solid")) +  # Custom line types
+  labs(title = "Daily PM2.5 Concentration in Kelowna and Kamloops",
+       x = "Date", y = "PM2.5 (µg/m³)", color = "Location", linetype = "Location") +
+  theme_minimal()
+
+class(kelowna_hourly$raw_value)
+
+#Create a time-series for Kelowna hourly
+hourly_kelowna_plot <- ggplot(kelowna_hourly, aes(x = Date, y = raw_value)) +  
+  geom_line(color = "black") +
+  labs(title = "Hourly PM2.5 Concentration in Kelowna",
+       x = "Date", y = "PM2.5 (µg/m³)") +
+  theme_minimal()
+
+print(hourly_kelowna_plot)  # Explicitly print the plot
+
+
+#Create a time-series for Kamloops hourly
+hourly_kamloops_plot <- ggplot(kamloops_hourly, aes(x = Date, y = raw_value)) +  
+  geom_line(color = "black") +
+  labs(title = "Hourly PM2.5 Concentration in Kamloops",
+       x = "Date", y = "PM2.5 (µg/m³)") +
+  theme_minimal()
+
+print(hourly_kamloops_plot)  # Explicitly print the plot
+
+#Combine the time-series for Kelowna and Kamloops hourly
+#Combine hourly datasets
+hourly_combined <- rbind(
+  kelowna_hourly %>% mutate(Location = "Kelowna"),
+  kamloops_hourly %>% mutate(Location = "Kamloops"))
+
+#Create the time-series for Kelowna and Kamloops hourly
+ggplot(hourly_combined, aes(x = Date, y = raw_value, color = Location, linetype = Location)) +
+  geom_line(size = 0.8) +
+  scale_color_manual(values = c("Kelowna" = "blue", "Kamloops" = "black")) +  # Blue & Black colors
+  scale_linetype_manual(values = c("Kelowna" = "solid", "Kamloops" = "solid")) +  # Solid & Dashed lines
+  labs(title = "Hourly PM2.5 Concentration in Kelowna and Kamloops",
+       x = "Date-Time", y = "PM2.5 (µg/m³)", color = "Location", linetype = "Location") +
+  theme_minimal()
+
+# WFS days
+# Plot Kelowna daily PM2.5 with WFS-days cutoff
+ggplot(kelowna_daily, aes(x = Date)) +
+  geom_line(aes(y = PM25, color = "PM2.5"), size = 1) +  # PM2.5 Line
+  geom_line(aes(y = WFS_Threshold, color = "WFS Threshold"), linetype = "dashed", size = 1) +  # Threshold Line
+  scale_color_manual(values = c("PM2.5" = "black", "WFS Threshold" = "red")) +  # Set Colors
+  labs(title = "Daily PM2.5 Concentration in Kelowna with WFS Threshold",
+       x = "Date", y = "PM2.5 (µg/m³)",
+       color = "Legend") +
+  theme_minimal()
+
+
+# Plot Kamloops daily PM2.5 with WFS-days cutoff
+ggplot(kamloops_daily, aes(x = Date)) +
+  geom_line(aes(y = PM25, color = "PM2.5"), size = 1) +  # PM2.5 Line
+  geom_line(aes(y = WFS_Threshold, color = "WFS Threshold"), linetype = "dashed", size = 1) +  # Threshold Line
+  scale_color_manual(values = c("PM2.5" = "black", "WFS Threshold" = "red")) +  # Set Colors
+  labs(title = "Daily PM2.5 Concentration in Kamloops with WFS Threshold",
+       x = "Date", y = "PM2.5 (µg/m³)",
+       color = "Legend") +
+  theme_minimal()
+
+#Highlight WFS days
+#kelowna daily WFS distinguished
+unique(kelowna_daily$WFS_Day)  # Should return values like "WFS" or NA
+class(kelowna_daily$WFS_Day)  # Should be "character" or "factor"
+
+ggplot(kelowna_daily, aes(x = Date)) +
+  geom_line(aes(y = PM25, color = "PM2.5"), size = 1) +  # PM2.5 Line
+  geom_line(aes(y = WFS_Threshold, color = "WFS Threshold"), linetype = "dashed", size = 1) +  # Threshold Line
+  geom_point(data = kelowna_daily %>% filter(WFS_Day == "WFS"), 
+             aes(y = PM25), shape = 8, color = "black", size = 3) +  # Stars for WFS days
+  scale_color_manual(values = c("PM2.5" = "black", "WFS Threshold" = "red")) +  # Set Colors
+  labs(title = "Daily PM2.5 Concentration in Kelowna with WFS Threshold and WFS Days",
+       x = "Date", y = "PM2.5 (µg/m³)", color = "Legend") +
+  theme_minimal()
+
+#kamloops daily WFS distinguished
+ggplot(kamloops_daily, aes(x = Date)) +
+  geom_line(aes(y = PM25, color = "PM2.5"), size = 1) +  # PM2.5 Line
+  geom_line(aes(y = WFS_Threshold, color = "WFS Threshold"), linetype = "dashed", size = 1) +  # Threshold Line
+  geom_point(data = kamloops_daily %>% filter(WFS_Day == "WFS"), 
+             aes(y = PM25), shape = 8, color = "black", size = 3) +  # Stars for WFS days
+  scale_color_manual(values = c("PM2.5" = "black", "WFS Threshold" = "red")) +  # Set Colors
+  labs(title = "Daily PM2.5 Concentration in Kamloops with WFS Threshold and WFS Days",
+       x = "Date", y = "PM2.5 (µg/m³)", color = "Legend") +
+  theme_minimal()
+
+#How many WFS days?
+#Kelowna WFS days#
+kelowna_wfs_count <- sum(kelowna_daily$WFS_Day == "WFS", na.rm = TRUE)
+print(paste("Number of WFS days in Kelowna:", kelowna_wfs_count))
+#Number of WFS days in Kelowna: 24
+
+#The days with WFS in Kelowna:
+kelowna_wfs_days <- kelowna_daily %>% 
+  filter(WFS_Day == "WFS") %>% 
+  select(Date)
+
+print(kelowna_wfs_days)
+#1 2024-03-19
+#2  2024-07-09
+#3  2024-07-16
+#4  2024-07-17
+#5  2024-07-18
+#6  2024-07-21
+#7  2024-07-22
+#8  2024-07-28
+#9  2024-08-03
+#10 2024-08-04
+#11 2024-08-05
+#12 2024-08-06
+#13 2024-08-09
+#14 2024-08-10
+#15 2024-08-11
+#16 2024-08-12
+#17 2024-08-14
+#18 2024-08-15
+#19 2024-08-30
+#20 2024-09-07
+#21 2024-09-08
+#22 2024-09-09
+#23 2024-10-14
+#24 2024-10-26
+
+#Kamloops WFS days#
+kamloops_wfs_count <- sum(kamloops_daily$WFS_Day == "WFS", na.rm = TRUE)
+print(paste("Number of WFS days in Kamloops:", kamloops_wfs_count))
+#Number of WFS days in Kamloops: 16
+
+#What day is the max daily PM2.5 value in Kamloops?
+max(kamloops_daily$PM25)
+#51.7625, which happened on 2024-07-22
+
+#The days with WFS in kamloops:
+kamloops_wfs_days <- kamloops_daily %>% 
+  filter(WFS_Day == "WFS") %>% 
+  select(Date)
+
+print(kamloops_wfs_days)
+#1  2024-07-17
+#2  2024-07-18
+#3  2024-07-20
+#4  2024-07-21
+#5  2024-07-22
+#6  2024-07-27
+#7  2024-08-03
+#8  2024-08-04
+#9  2024-08-11
+#10 2024-08-13
+#11 2024-08-14
+#12 2024-08-16
+#13 2024-08-17
+#14 2024-09-05
+#15 2024-09-07
+#16 2024-09-08
+
+#visiual graph or something with AQI levels and PM2.5 concentrations
+#https://aqs.epa.gov/aqsweb/documents/codetables/aqi_breakpoints.html
+#The 24-hour PM2.5 average is the official standard used by the EPA for AQI reporting.
+#Should I use the AQHI (Canada) or AQI (US)?
+#^ Feb 04, 2025
+#KELOWNA - AQI
+# Add AQI Category column to Kelowna Daily dataset
+kelowna_daily <- kelowna_daily %>%
+  mutate(AQI_Category = case_when(
+    PM25 >= 0.0  & PM25 <= 9.0    ~ "Good",
+    PM25 > 9.0  & PM25 <= 35.4   ~ "Moderate",
+    PM25 > 35.4 & PM25 <= 55.4   ~ "Unhealthy for Sensitive Groups",
+    PM25 > 55.4 & PM25 <= 125.4  ~ "Unhealthy",
+    PM25 > 125.4 & PM25 <= 225.4 ~ "Very Unhealthy",
+    PM25 > 225.4 & PM25 <= 325.4 ~ "Hazardous",
+    PM25 > 325.4                 ~ "Hazardous (Extreme)",
+    TRUE                         ~ NA_character_  # Default case for unexpected values
+  ))
+
+# Add AQI Value column
+kelowna_daily <- kelowna_daily %>%
+  mutate(AQI_Value = case_when(
+    PM25 >= 0.0  & PM25 <= 9.0    ~ round((50 - 0) / (9.0 - 0.0) * (PM25 - 0.0) + 0),
+    PM25 > 9.0  & PM25 <= 35.4   ~ round((100 - 51) / (35.4 - 9.1) * (PM25 - 9.1) + 51),
+    PM25 > 35.4 & PM25 <= 55.4   ~ round((150 - 101) / (55.4 - 35.5) * (PM25 - 35.5) + 101),
+    PM25 > 55.4 & PM25 <= 125.4  ~ round((200 - 151) / (125.4 - 55.5) * (PM25 - 55.5) + 151),
+    PM25 > 125.4 & PM25 <= 225.4 ~ round((300 - 201) / (225.4 - 125.5) * (PM25 - 125.5) + 201),
+    PM25 > 225.4 & PM25 <= 325.4 ~ round((500 - 301) / (325.4 - 225.5) * (PM25 - 225.5) + 301),
+    PM25 > 325.4                 ~ round((999 - 501) / (99999.9 - 325.5) * (PM25 - 325.5) + 501),
+    TRUE                         ~ NA_real_  # Default case for unexpected values
+  ))
+
+# View updated dataset
+print(head(kelowna_daily))
+
+#Kamloops AQI
+kamloops_daily <- kamloops_daily %>%
+  mutate(AQI_Category = case_when(
+    PM25 >= 0.0  & PM25 <= 9.0    ~ "Good",
+    PM25 > 9.0  & PM25 <= 35.4   ~ "Moderate",
+    PM25 > 35.4 & PM25 <= 55.4   ~ "Unhealthy for Sensitive Groups",
+    PM25 > 55.4 & PM25 <= 125.4  ~ "Unhealthy",
+    PM25 > 125.4 & PM25 <= 225.4 ~ "Very Unhealthy",
+    PM25 > 225.4 & PM25 <= 325.4 ~ "Hazardous",
+    PM25 > 325.4                 ~ "Hazardous (Extreme)",
+    TRUE                         ~ NA_character_  # Default case for unexpected values
+  ))
+
+# Add AQI Value column
+kamloops_daily <- kamloops_daily %>%
+  mutate(AQI_Value = case_when(
+    PM25 >= 0.0  & PM25 <= 9.0    ~ round((50 - 0) / (9.0 - 0.0) * (PM25 - 0.0) + 0),
+    PM25 > 9.0  & PM25 <= 35.4   ~ round((100 - 51) / (35.4 - 9.1) * (PM25 - 9.1) + 51),
+    PM25 > 35.4 & PM25 <= 55.4   ~ round((150 - 101) / (55.4 - 35.5) * (PM25 - 35.5) + 101),
+    PM25 > 55.4 & PM25 <= 125.4  ~ round((200 - 151) / (125.4 - 55.5) * (PM25 - 55.5) + 151),
+    PM25 > 125.4 & PM25 <= 225.4 ~ round((300 - 201) / (225.4 - 125.5) * (PM25 - 125.5) + 201),
+    PM25 > 225.4 & PM25 <= 325.4 ~ round((500 - 301) / (325.4 - 225.5) * (PM25 - 225.5) + 301),
+    PM25 > 325.4                 ~ round((999 - 501) / (99999.9 - 325.5) * (PM25 - 325.5) + 501),
+    TRUE                         ~ NA_real_  # Default case for unexpected values
+  ))
+
+# View updated dataset
+print(head(kamloops_daily))
+
+#Visualizing AQI 
+# Ensure both datasets have AQI data
+daily_combined_aqi <- rbind(
+  kelowna_daily %>% mutate(Location = "Kelowna"),
+  kamloops_daily %>% mutate(Location = "Kamloops"))
+
+#Time-Series
+ggplot(daily_combined_aqi, aes(x = Date, y = AQI_Value, color = Location)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(values = c("Kelowna" = "blue", "Kamloops" = "black")) +
+  labs(title = "Daily AQI Levels in Kelowna and Kamloops",
+       x = "Date", y = "AQI Value", color = "Location") +
+  theme_minimal()
+
+#Bar chart: Kelowna
+ggplot(kelowna_daily, aes(x = Date, y = AQI_Value, fill = AQI_Category)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("Good" = "#00E400", 
+                               "Moderate" = "#FFFF00", 
+                               "Unhealthy for Sensitive Groups" = "#FF7E00",
+                               "Unhealthy" = "#FF0000", 
+                               "Very Unhealthy" = "#8F3F97", 
+                               "Hazardous" = "#7E0023",
+                               "Hazardous (Extreme)" = "#660000")) +
+  labs(title = "AQI Levels by Category in Kelowna",
+       x = "Date", y = "AQI Value", fill = "AQI Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+
+#Bar chart for Kamloops
+ggplot(kamloops_daily, aes(x = Date, y = AQI_Value, fill = AQI_Category)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("Good" = "#00E400", 
+                               "Moderate" = "#FFFF00", 
+                               "Unhealthy for Sensitive Groups" = "#FF7E00",
+                               "Unhealthy" = "#FF0000", 
+                               "Very Unhealthy" = "#8F3F97", 
+                               "Hazardous" = "#7E0023",
+                               "Hazardous (Extreme)" = "#660000")) +
+  labs(title = "AQI Levels by Category in Kamloops",
+       x = "Date", y = "AQI Value", fill = "AQI Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+
+#Heat Map
+ggplot(daily_combined_aqi, aes(x = Date, y = Location, fill = AQI_Category)) +
+  geom_tile() +
+  scale_fill_manual(values = c("Good" = "#00E400", 
+                               "Moderate" = "#FFFF00", 
+                               "Unhealthy for Sensitive Groups" = "#FF7E00",
+                               "Unhealthy" = "#FF0000", 
+                               "Very Unhealthy" = "#8F3F97", 
+                               "Hazardous" = "#7E0023",
+                               "Hazardous (Extreme)" = "#660000")) +
+  labs(title = "AQI Category Trends in Kelowna and Kamloops",
+       x = "Date", y = "Location", fill = "AQI Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+
+#Scatterplot
+ggplot(kamloops_daily, aes(x = PM25, y = AQI_Value, color = AQI_Category)) +
+  geom_point(size = 3, alpha = 0.8) +
+  scale_color_manual(values = c("Good" = "#00E400", 
+                                "Moderate" = "#FFFF00", 
+                                "Unhealthy for Sensitive Groups" = "#FF7E00",
+                                "Unhealthy" = "#FF0000", 
+                                "Very Unhealthy" = "#8F3F97", 
+                                "Hazardous" = "#7E0023",
+                                "Hazardous (Extreme)" = "#660000")) +
+  labs(title = "PM2.5 vs. AQI Relationship in Kamloops",
+       x = "PM2.5 Concentration (µg/m³)", y = "AQI Value", color = "AQI Category") +
+  theme_minimal()
+
+ggplot(kelowna_daily, aes(x = PM25, y = AQI_Value, color = AQI_Category)) +
+  geom_point(size = 3, alpha = 0.8) +
+  scale_color_manual(values = c("Good" = "#00E400", 
+                                "Moderate" = "#FFFF00", 
+                                "Unhealthy for Sensitive Groups" = "#FF7E00",
+                                "Unhealthy" = "#FF0000", 
+                                "Very Unhealthy" = "#8F3F97", 
+                                "Hazardous" = "#7E0023",
+                                "Hazardous (Extreme)" = "#660000")) +
+  labs(title = "PM2.5 vs. AQI Relationship in Kelowna",
+       x = "PM2.5 Concentration (µg/m³)", y = "AQI Value", color = "AQI Category") +
+  theme_minimal()
+
+#Krystal's Ammendements/New Graphs
+# Define time periods with alternating colors
+time_periods <- data.frame(
+  Period = c("001", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"),
+  Start_Date = as.Date(c("2024-03-22", "2024-04-12", "2024-05-03", "2024-05-24", "2024-06-12",
+                         "2024-07-03", "2024-07-10", "2024-07-17", "2024-07-24", "2024-08-08",
+                         "2024-08-14", "2024-09-04")),
+  End_Date = as.Date(c("2024-04-12", "2024-05-03", "2024-05-24", "2024-06-12", "2024-07-03",
+                       "2024-07-10", "2024-07-17", "2024-07-24", "2024-08-08", "2024-08-14",
+                       "2024-09-04", "2024-09-25")))
+
+# Filter Kelowna data for the time period
+kelowna_filtered <- kelowna_daily %>%
+  filter(Date >= as.Date("2024-03-22") & Date <= as.Date("2024-09-25"))
+
+# Filter Kamloops data for the time period
+kamloops_filtered <- kamloops_daily %>%
+  filter(Date >= as.Date("2024-03-22") & Date <= as.Date("2024-09-25"))
+
+#Kamloops time-series
+ggplot() +
+  # Add background rectangles for time periods
+  geom_rect(data = time_periods, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf, fill = Period), 
+            alpha = 0.2) +  # Adjust transparency for readability
+  # Add PM2.5 line
+  geom_line(data = kamloops_filtered, aes(x = Date, y = PM25), color = "black", size = 1) +
+  labs(title = "Daily PM2.5 Concentration in Kamloops (March 22 - Sept 25, 2024)",
+       x = "Date", y = "PM2.5 (µg/m³)", fill = "Sampler Period") +
+  scale_fill_manual(values = rep(c("#A9A9A9", "#5F9EA0"), length.out = nrow(time_periods))) +  # Alternating colors
+  theme_minimal()
+
+#Kelowna time-series
+ggplot() +
+  # Add background rectangles for time periods
+  geom_rect(data = time_periods, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf, fill = Period), 
+            alpha = 0.2) +  # Adjust transparency for readability
+  # Add PM2.5 line
+  geom_line(data = kelowna_filtered, aes(x = Date, y = PM25), color = "blue", size = 1) +
+  labs(title = "Daily PM2.5 Concentration in Kelowna (March 22 - Sept 25, 2024)",
+       x = "Date", y = "PM2.5 (µg/m³)", fill = "Sampler Period") +
+  scale_fill_manual(values = rep(c("#A9A9A9", "#5F9EA0"), length.out = nrow(time_periods))) +  # Alternating colors
+  theme_minimal()
+
+#Both together
+ggplot() +
+  # Add background rectangles for sampler periods
+  geom_rect(data = time_periods, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf, fill = Period), 
+            alpha = 0.3) +  # Adjust transparency for visibility
+  # Add PM2.5 line for Kelowna
+  geom_line(data = kelowna_filtered, aes(x = Date, y = PM25, color = "Kelowna"), size = 1) +
+  # Add PM2.5 line for Kamloops
+  geom_line(data = kamloops_filtered, aes(x = Date, y = PM25, color = "Kamloops"), size = 1) +
+  labs(title = "Daily PM2.5 Concentration in Kelowna & Kamloops (March 22 - Sept 25, 2024)",
+       x = "Date", y = "PM2.5 (µg/m³)", fill = "Sampler Period", color = "Location") +
+  scale_fill_manual(values = rep(c("#A9A9A9", "#5F9EA0"), length.out = nrow(time_periods))) +  # Darker alternating colors
+  scale_color_manual(values = c("Kelowna" = "blue", "Kamloops" = "black")) +  # Different line colors
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),  # Remove major grid lines
+        panel.grid.minor = element_blank(),  # Remove minor grid lines
+        panel.background = element_blank())  # Remove background
+
+#RE-DO WFS day graphs
+# Create a dataframe with WFS days for Kelowna
+kelowna_wfs_highlight <- kelowna_daily %>%
+  filter(WFS_Day == "WFS") %>%
+  select(Date) %>%
+  mutate(Start_Date = Date - 0.5,  # Extend slightly for visibility
+         End_Date = Date + 0.5)
+
+# Create a dataframe with WFS days for Kamloops
+kamloops_wfs_highlight <- kamloops_daily %>%
+  filter(WFS_Day == "WFS") %>%
+  select(Date) %>%
+  mutate(Start_Date = Date - 0.5,  # Extend slightly for visibility
+         End_Date = Date + 0.5)
+
+#Kamloops - WFS highlight
+ggplot() +
+  # Highlight WFS days in yellow
+  geom_rect(data = kamloops_wfs_highlight, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf), 
+            fill = "yellow", alpha = 0.3) +
+  # Shade area below the PM2.5 line
+  geom_ribbon(data = kamloops_daily, aes(x = Date, ymin = 0, ymax = PM25), fill = "black", alpha = 0.2) +
+  # Add PM2.5 line
+  geom_line(data = kamloops_daily, aes(x = Date, y = PM25), color = "black", size = 1) +
+  # Add WFS cutoff threshold line
+  geom_hline(aes(yintercept = mean(kamloops_daily$WFS_Threshold, na.rm = TRUE)), 
+             linetype = "dashed", color = "red", size = 1) +
+  labs(title = "Daily PM2.5 Concentration in Kamloops with WFS Highlights & Threshold",
+       x = "Date", y = "PM2.5 (µg/m³)") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),  # Remove major grid lines
+        panel.grid.minor = element_blank(),  # Remove minor grid lines
+        panel.background = element_blank())  # Remove default background
+
+#Kelowna # Highlight WFS days in yellow
+ggplot() +
+  # Highlight WFS days in yellow
+  geom_rect(data = kelowna_wfs_highlight, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf), 
+            fill = "yellow", alpha = 0.3) +
+  # Shade area below the PM2.5 line
+  geom_ribbon(data = kelowna_daily, aes(x = Date, ymin = 0, ymax = PM25), fill = "blue", alpha = 0.2) +
+  # Add PM2.5 line
+  geom_line(data = kelowna_daily, aes(x = Date, y = PM25), color = "blue", size = 1) +
+  # Add WFS cutoff threshold line
+  geom_hline(aes(yintercept = mean(kelowna_daily$WFS_Threshold, na.rm = TRUE)), 
+             linetype = "dashed", color = "red", size = 1) +
+  labs(title = "Daily PM2.5 Concentration in Kelowna with WFS Highlights & Threshold",
+       x = "Date", y = "PM2.5 (µg/m³)") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),  # Remove major grid lines
+        panel.grid.minor = element_blank(),  # Remove minor grid lines
+        panel.background = element_blank())  # Remove default background
+
+#Graph that combines all the elements
+# Create a dataframe with WFS days for Kelowna
+kelowna_wfs_highlight <- kelowna_daily %>%
+  filter(WFS_Day == "WFS") %>%
+  select(Date) %>%
+  mutate(Start_Date = Date - 0.5,  # Slightly expand highlight for visibility
+         End_Date = Date + 0.5)
+
+# Create a dataframe with WFS days for Kamloops
+kamloops_wfs_highlight <- kamloops_daily %>%
+  filter(WFS_Day == "WFS") %>%
+  select(Date) %>%
+  mutate(Start_Date = Date - 0.5,  # Slightly expand highlight for visibility
+         End_Date = Date + 0.5)
+
+#KELOWNA
+ggplot() +
+  # Add background rectangles for sampler periods (darker alternating colors)
+  geom_rect(data = time_periods, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf, fill = Period), 
+            alpha = 0.4) +  
+  # Add yellow highlight for WFS days
+  geom_rect(data = kelowna_wfs_highlight, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf), 
+            fill = "yellow", alpha = 0.3) +
+  # Shade area below the PM2.5 line
+  geom_ribbon(data = kelowna_filtered, aes(x = Date, ymin = 0, ymax = PM25), fill = "blue", alpha = 0.3) +
+  # Add PM2.5 line
+  geom_line(data = kelowna_filtered, aes(x = Date, y = PM25, color = "PM2.5 (Kelowna)"), size = 1) +
+  # Add WFS cutoff threshold line
+  geom_hline(yintercept = mean(kelowna_filtered$WFS_Threshold, na.rm = TRUE), 
+             color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Daily PM2.5 Concentration in Kelowna with WFS & Sampler Periods",
+       x = "Date", y = "PM2.5 (µg/m³)", fill = "Legend", color = "Legend") +
+  scale_fill_manual(values = rep(c("#6A5ACD", "#4682B4"), length.out = length(unique(time_periods$Period))),
+                    name = "Sampler Period") +  
+  scale_color_manual(values = c("PM2.5 (Kelowna)" = "blue", "WFS Threshold" = "red")) +  
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),  
+        panel.background = element_blank())
+
+
+#KAMLOOPS
+ggplot() +
+  # Add background rectangles for sampler periods (darker alternating colors)
+  geom_rect(data = time_periods, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf, fill = Period), 
+            alpha = 0.4) +  
+  # Add yellow highlight for WFS days
+  geom_rect(data = kamloops_wfs_highlight, 
+            aes(xmin = Start_Date, xmax = End_Date, ymin = -Inf, ymax = Inf), 
+            fill = "yellow", alpha = 0.3) +
+  # Shade area below the PM2.5 line
+  geom_ribbon(data = kamloops_filtered, aes(x = Date, ymin = 0, ymax = PM25), fill = "black", alpha = 0.3) +
+  # Add PM2.5 line
+  geom_line(data = kamloops_filtered, aes(x = Date, y = PM25, color = "PM2.5 (Kamloops)"), size = 1) +
+  # Add WFS cutoff threshold line
+  geom_hline(yintercept = mean(kamloops_filtered$WFS_Threshold, na.rm = TRUE), 
+             color = "red", linetype = "dashed", size = 1) +
+  labs(title = "Daily PM2.5 Concentration in Kamloops with WFS & Sampler Periods",
+       x = "Date", y = "PM2.5 (µg/m³)", fill = "Legend", color = "Legend") +
+  scale_fill_manual(values = rep(c("#6A5ACD", "#4682B4"), length.out = length(unique(time_periods$Period))),
+                    name = "Sampler Period") +  
+  scale_color_manual(values = c("PM2.5 (Kamloops)" = "black", "WFS Threshold" = "red")) +  
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),  
+        panel.background = element_blank())
+
+#Double-check the number of WFS Days
+#kamloops
+# Filter Kamloops data for days exceeding the WFS threshold
+kamloops_over_wfs <- kamloops_daily %>%
+  filter(PM25 > WFS_Threshold) %>%
+  select(Date)
+
+# Count number of days in Kamloops
+kamloops_over_wfs_count <- nrow(kamloops_over_wfs)
+
+# Print results for Kamloops
+print(paste("Number of days over WFS threshold in Kamloops:", kamloops_over_wfs_count))
+print("Dates over WFS threshold in Kamloops:")
+print(kamloops_over_wfs)
+
+#Kelowna
+# Filter Kelowna data for days exceeding the WFS threshold
+kelowna_over_wfs <- kelowna_daily %>%
+  filter(PM25 > WFS_Threshold) %>%
+  select(Date)
+
+# Count number of days in Kelowna
+kelowna_over_wfs_count <- nrow(kelowna_over_wfs)
+
+# Print results for Kelowna
+print(paste("Number of days over WFS threshold in Kelowna:", kelowna_over_wfs_count))
+print("Dates over WFS threshold in Kelowna:")
+print(kelowna_over_wfs)
+
+#-------------
+#Calculate PM2.5 Means
+#Kamloops Hourly
+# Ensure PM2.5 columns are numeric
+kamloops_hourly$PM25 <- as.numeric(kamloops_hourly$raw_value)
+
+# Define sampler periods for Kamloops
+sampler_periods_kamloops <- data.frame(
+  Sampler_ID = c("Kam_001", "Kam_002", "Kam_003", "Kam_004", "Kam_005", "Kam_006", "Kam_007", "Kam_008", "Kam_009", "Kam_010", "Kam_011", "Kam_012", "Kam_013", "Kam_014"),
+  Start_Date = as.POSIXct(c("2024-03-22 15:00", "2024-03-22 15:00", "2024-04-12 14:30", "2024-05-03 14:30", "2024-05-24 14:30", 
+                            "2024-06-12 10:40", "2024-07-03 14:00", "2024-07-10 14:00", "2024-07-17 15:00", "2024-07-24 14:40", 
+                            "2024-08-08 14:00", "2024-08-14 10:38", "2024-09-04 10:18", "2024-09-04 10:18"), format="%Y-%m-%d %H:%M"),
+  End_Date = as.POSIXct(c("2024-04-12 14:00", "2024-04-12 14:00", "2024-05-03 14:00", "2024-05-24 14:30", "2024-06-12 10:35", 
+                          "2024-07-03 14:00", "2024-07-10 14:00", "2024-07-17 15:00", "2024-07-24 14:20", "2024-08-08 13:55", 
+                          "2024-08-14 10:27", "2024-09-04 10:11", "2024-09-25 10:23", "2024-09-25 10:23"), format="%Y-%m-%d %H:%M")
+)
+
+# Function to calculate average PM2.5 concentration
+calculate_avg_pm25 <- function(data, sampler_periods) {
+  results <- data.frame(Sampler_ID = sampler_periods$Sampler_ID, Avg_PM25 = NA)
+  
+  for (i in 1:nrow(sampler_periods)) {
+    subset_data <- data %>%
+      filter(Date >= sampler_periods$Start_Date[i] & Date <= sampler_periods$End_Date[i])
+    
+    if (nrow(subset_data) > 0) {
+      results$Avg_PM25[i] <- mean(subset_data$PM25, na.rm = TRUE)
+    } else {
+      results$Avg_PM25[i] <- NA
+    }
+  }
+  return(results)
+}
+
+# Calculate averages for Kamloops
+kamloops_hourly_avg <- calculate_avg_pm25(kamloops_hourly, sampler_periods_kamloops)
+
+# Display Kamloops Hourly results
+View(kamloops_hourly_avg)
+
+#Now for Kelowna Hourly
+kelowna_hourly$PM25 <- as.numeric(kelowna_hourly$raw_value)
+
+# Define sampler periods for Kamloops
+sampler_periods_kelowna <- data.frame(
+  Sampler_ID = c("Kel_001", "Kel_002", "Kel_003", "Kel_004", "Kel_005", "Kel_006", "Kel_007", "Kel_008", "Kel_009", "Kel_010", "Kel_011", "Kel_012", "Kel_013", "Kel_014"),
+  Start_Date = as.POSIXct(c("2024-03-22 15:00", "2024-03-22 15:00", "2024-04-12 14:30", "2024-05-03 14:30", "2024-05-24 14:30", 
+                            "2024-06-12 10:40", "2024-07-03 14:00", "2024-07-10 14:00", "2024-07-17 15:00", "2024-07-24 14:40", 
+                            "2024-08-08 14:00", "2024-08-14 10:38", "2024-09-04 10:18", "2024-09-04 10:18"), format="%Y-%m-%d %H:%M"),
+  End_Date = as.POSIXct(c("2024-04-12 14:00", "2024-04-12 14:00", "2024-05-03 14:00", "2024-05-24 14:30", "2024-06-12 10:35", 
+                          "2024-07-03 14:00", "2024-07-10 14:00", "2024-07-17 15:00", "2024-07-24 14:20", "2024-08-08 13:55", 
+                          "2024-08-14 10:27", "2024-09-04 10:11", "2024-09-25 10:23", "2024-09-25 10:23"), format="%Y-%m-%d %H:%M")
+)
+
+# Function to calculate average PM2.5 concentration
+calculate_avg_pm25 <- function(data, sampler_periods) {
+  results <- data.frame(Sampler_ID = sampler_periods$Sampler_ID, Avg_PM25 = NA)
+  
+  for (i in 1:nrow(sampler_periods)) {
+    subset_data <- data %>%
+      filter(Date >= sampler_periods$Start_Date[i] & Date <= sampler_periods$End_Date[i])
+    
+    if (nrow(subset_data) > 0) {
+      results$Avg_PM25[i] <- mean(subset_data$PM25, na.rm = TRUE)
+    } else {
+      results$Avg_PM25[i] <- NA
+    }
+  }
+  return(results)
+}
+
+# Calculate averages for Kamloops
+kelowna_hourly_avg <- calculate_avg_pm25(kelowna_hourly, sampler_periods_kelowna)
+View(kelowna_hourly_avg)
+
+#Save kamloops_daily and kelowna_daily files
+save(kamloops_daily, file = "kamloops_daily.RData")
+save(kamloops_hourly, file = "kamloops_hourly.RData")
+
+# Save Kelowna daily data
+save(kelowna_daily, file = "kelowna_daily.RData")
+save(kelowna_hourly, file = "kelowna_hourly.RData")

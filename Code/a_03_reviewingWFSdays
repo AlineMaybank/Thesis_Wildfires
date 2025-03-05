@@ -1,0 +1,112 @@
+#a_03_reviewingWFSdays
+
+#I am trying to align the temporal resolution of all of the different dataset.
+#Here are the currently misaligned datasets:
+    #PM2.5 = hourly
+    #WFS threshold= daily
+    #chemical data = Sampler period (which is broken up by hour and by day)
+
+#What I am specifcialy trying to fix/do:
+#For my analysis, I need to define hourly concentrations as WFS or non-WFS so I 
+   #can calculate mean PM2.5 values for each period using hourly data.
+  #However, sometimes a WFS day occured on the day that the sampler was changed
+#For example, for Kamloops:
+    #2024-07-17
+    #2024-08-14
+#For example for Kelowna:
+    #2024-07-17
+    #2024-08-14
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(lubridate)
+
+# Load Kamloops and Kelowna hourly PM2.5 datasets
+getwd()
+load("kamloops_hourly.RData")
+load("kelowna_hourly.RData")
+
+#To properly define these days, plot the hourly PM2.5 for these days:
+#Kamloops and Kelowna:
+#2024-07-17
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Load hourly PM2.5 datasets
+load("kamloops_hourly.RData")
+load("kelowna_hourly.RData")
+
+# Ensure the "Date" and "time" columns exist
+str(kamloops_hourly)
+str(kelowna_hourly)
+
+# Convert Date and time columns into a single POSIXct datetime column
+kamloops_hourly <- kamloops_hourly %>%
+  mutate(DateTime = as.POSIXct(paste(Date, time), format="%Y-%m-%d %H:%M", tz="America/Vancouver"))
+
+kelowna_hourly <- kelowna_hourly %>%
+  mutate(DateTime = as.POSIXct(paste(Date, time), format="%Y-%m-%d %H:%M", tz="America/Vancouver"))
+
+# Filter data for July 17, 2024
+kamloops_filtered <- kamloops_hourly %>%
+  filter(DateTime >= as.POSIXct("2024-07-17 00:00", tz="America/Vancouver") &
+           DateTime <= as.POSIXct("2024-07-17 23:59", tz="America/Vancouver"))
+
+kelowna_filtered <- kelowna_hourly %>%
+  filter(DateTime >= as.POSIXct("2024-07-17 00:00", tz="America/Vancouver") &
+           DateTime <= as.POSIXct("2024-07-17 23:59", tz="America/Vancouver"))
+
+# Combine datasets for plotting
+combined_data <- rbind(
+  kamloops_filtered %>% mutate(Location = "Kamloops"),
+  kelowna_filtered %>% mutate(Location = "Kelowna")
+)
+
+# Plot the corrected time-series
+ggplot(combined_data, aes(x = DateTime, y = raw_value, color = Location, linetype = Location)) +
+  geom_line(size = 1) +
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "4 hours") +  # Display hours on x-axis
+  labs(title = "Hourly PM2.5 Concentrations on July 17, 2024",
+       x = "Time of Day", y = "PM2.5 (µg/m³)", color = "Location", linetype = "Location") +
+  scale_color_manual(values = c("Kamloops" = "black", "Kelowna" = "blue")) +  # Set custom colors
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+
+# Filter data for August 14, 2024
+kamloops_filtered <- kamloops_hourly %>%
+  filter(DateTime >= as.POSIXct("2024-08-14 00:00", tz="America/Vancouver") &
+           DateTime <= as.POSIXct("2024-08-14 23:59", tz="America/Vancouver"))
+
+kelowna_filtered <- kelowna_hourly %>%
+  filter(DateTime >= as.POSIXct("2024-08-14 00:00", tz="America/Vancouver") &
+           DateTime <= as.POSIXct("2024-08-14 23:59", tz="America/Vancouver"))
+
+# Combine datasets for plotting
+combined_data <- rbind(
+  kamloops_filtered %>% mutate(Location = "Kamloops"),
+  kelowna_filtered %>% mutate(Location = "Kelowna")
+)
+
+# Plot the corrected time-series
+ggplot(combined_data, aes(x = DateTime, y = raw_value, color = Location, linetype = Location)) +
+  geom_line(size = 1) +
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "4 hours") +  # Display hours on x-axis
+  labs(title = "Hourly PM2.5 Concentrations on Aug 14, 2024",
+       x = "Time of Day", y = "PM2.5 (µg/m³)", color = "Location", linetype = "Location") +
+  scale_color_manual(values = c("Kamloops" = "black", "Kelowna" = "blue")) +  # Set custom colors
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+#Thus:
+#Kamloops:
+#2024-07-17= Kam_009
+#2024-08-14= Kam_012
+
+#Kelowna:
+#2024-07-17= Kam_008
+#2024-08-14= Kam_012

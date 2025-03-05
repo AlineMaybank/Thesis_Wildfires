@@ -1,0 +1,419 @@
+#Thesis Data Analysis
+#a_01_windroses.R
+#end all, clear all
+graphics.off()
+rm(list=ls())
+
+#Check Workign directory
+getwd()
+#"/Users/alinemaybank/Desktop/thesis/Analysis"
+
+#Packages
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(lubridate)
+library(readr)
+install.packages("openair")
+library(openair)
+library(cowplot)
+library(grid)
+library(png)
+
+# Read in wind datasets
+Kamloops_wind <- read_csv("Kamloops_Wind_2024.csv")
+Kelowna_wind <- read_csv("Kelowna_Wind_2024.csv")
+#daily values (May 1-Nov 4 2024)
+#Date/Time; Dir of Max Gust (10s deg); Spd of Max Gust (km/h)
+
+# Convert wind direction from "10s deg" to degrees (multiply by 10)
+Kamloops_wind <- Kamloops_wind %>%
+  mutate(`Dir of Max Gust (deg)` = `Dir of Max Gust (10s deg)` * 10)
+Kelowna_wind <- Kelowna_wind %>%
+  mutate(`Dir of Max Gust (deg)` = `Dir of Max Gust (10s deg)` * 10)
+
+# Convert wind speed from km/h to m/s
+Kamloops_wind <- Kamloops_wind %>%
+  mutate(`Spd of Max Gust (m/s)` = `Spd of Max Gust (km/h)` / 3.6)
+Kelowna_wind <- Kelowna_wind %>%
+  mutate(`Spd of Max Gust (m/s)` = `Spd of Max Gust (km/h)` / 3.6)
+
+#Reformat Date
+# Convert "Date/Time" column from MM/DD/YYYY format to a proper Date object
+Kamloops_wind <- Kamloops_wind %>%
+  mutate(Date = as.Date(`Date/Time`, format="%m/%d/%Y"))
+
+Kelowna_wind <- Kelowna_wind %>%
+  mutate(Date = as.Date(`Date/Time`, format="%m/%d/%Y"))
+
+str(Kamloops_wind$Date)
+#Date[1:249], format: "2024-03-01" "2024-03-02" "2024-03-03" "2024-03-04" "2024-03-05" ...
+
+Kamloops_wind <- Kamloops_wind %>%
+  mutate(`Date/Time` = as.character(`Date/Time`),  # Ensure it's a string
+         Date = as.Date(`Date/Time`, format="%m/%d/%Y"))  # Convert to Date format
+
+# Remove NA values for wind speed and direction
+Kamloops_wind_clean <- Kamloops_wind %>%
+  filter(!is.na(`Spd of Max Gust (m/s)`) & !is.na(`Dir of Max Gust (deg)`))
+Kelowna_wind_clean <- Kelowna_wind %>%
+  filter(!is.na(`Spd of Max Gust (m/s)`) & !is.na(`Dir of Max Gust (deg)`))
+
+# Generate the wind rose (using raw counts)
+# Define 16 Compass Directions
+compass_labels <- c("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", 
+                    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
+
+# Manually assign wind direction bins (16 compass points)
+Kamloops_wind_clean$dir_bin <- cut(Kamloops_wind_clean$`Dir of Max Gust (deg)`, 
+                                   breaks = seq(0, 360, by = 22.5), 
+                                   labels = compass_labels, 
+                                   include.lowest = TRUE, right = FALSE)
+
+Kelowna_wind_clean$dir_bin <- cut(Kelowna_wind_clean$`Dir of Max Gust (deg)`, 
+                                  breaks = seq(0, 360, by = 22.5), 
+                                  labels = compass_labels, 
+                                  include.lowest = TRUE, right = FALSE)
+
+# Check that all 16 bins are represented
+print(table(Kamloops_wind_clean$dir_bin))
+#N NNE  NE ENE   E ESE  SE SSE   S SSW  SW WSW   W WNW  NW NNW 
+#5   5   0   2  45   2   4   4  11  21  14   5  44  10   1   3 
+print(table(Kelowna_wind_clean$dir_bin))
+#  N NNE  NE ENE   E ESE  SE SSE   S SSW  SW WSW   W WNW  NW NNW 
+#  1   1   0   0   1   0   0   7  46  18   5  10  11  16  12  37
+
+# Kamloops Wind Rose
+windRose(Kamloops_wind_clean,
+         ws = "Spd of Max Gust (m/s)",  
+         wd = "Dir of Max Gust (deg)",  
+         statistic = "frequency",      
+         key.header = "Wind Speed (m/s)", 
+         key.position = "right",
+         ws.int = 2,                  
+         wd.int = 22.5,               
+         grid.line = 5,              
+         paddle = FALSE,             
+         breaks = c(0, 2, 4, 6, 8, 10, 15, 20, 25), 
+         col = "Spectral")
+
+# Kelowna Wind Rose
+windRose(Kelowna_wind_clean,
+         ws = "Spd of Max Gust (m/s)",  
+         wd = "Dir of Max Gust (deg)",  
+         statistic = "frequency",      
+         key.header = "Wind Speed (m/s)", 
+         key.position = "right",
+         ws.int = 2,                  
+         wd.int = 22.5,               
+         grid.line = 5,              
+         paddle = FALSE,             
+         breaks = c(0, 2, 4, 6, 8, 10, 15, 20, 25), 
+         col = "Spectral")
+
+#WIND ROSES FOR ALL THE SAMPLER TIMES
+# Define function to generate wind roses for a given dataset and time period
+generate_wind_rose <- function(dataset, title) {
+  windRose(dataset,
+           ws = "Spd of Max Gust (m/s)",  
+           wd = "Dir of Max Gust (deg)",  
+           statistic = "frequency",      
+           key.header = "Wind Speed (m/s)", 
+           key.position = "right",
+           ws.int = 2,                  
+           wd.int = 22.5,               
+           grid.line = 5,              
+           paddle = FALSE,             
+           breaks = c(0, 2, 4, 6, 8, 10, 15, 20, 25), 
+           col = "Spectral",
+           main = title)}
+
+#Kamloops: Wind roses for each of the sampler periods
+# --- A) March 22 - September 25, 2024 ---
+Kam_A <- Kamloops_wind %>%
+  filter(Date >= as.Date("2024-03-22") & Date <= as.Date("2024-09-25"))
+generate_wind_rose(Kam_A, "Kamloops Total Study Period (March 22 - September 25, 2024)")
+
+# Define function to generate wind roses with proper frequency breaks
+generate_wind_rose <- function(dataset, title) {
+  windRose(dataset,
+           ws = "Spd of Max Gust (m/s)",  
+           wd = "Dir of Max Gust (deg)",  
+           statistic = "frequency",       # Ensure frequency counts, not percentages
+           key.header = "Wind Speed (m/s)", 
+           key.position = "right",
+           ws.int = 2,                  
+           wd.int = 22.5,               
+           grid.line = 1,               # Set grid line to ensure visible counts (1, 2, 3, 4, 5, etc.)
+           paddle = FALSE,             
+           breaks = c(0, 2, 4, 6, 8, 10, 15, 20, 25), 
+           col = "Spectral",
+           main = title)}
+
+# --- B) Kam_001 (March 22 – April 12, 2024) ---
+Kam_001 <- Kamloops_wind_clean %>% filter(Date >= as.Date("2024-03-22") & Date <= as.Date("2024-04-12"))
+generate_wind_rose(Kam_001, "Kamloops Wind Rose (Kam_001: March 22 - April 12, 2024)")
+
+# --- C) Kam_003 (April 12 – May 03, 2024) ---
+Kam_003 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-04-12") & Date <= as.Date("2024-05-03"))
+generate_wind_rose(Kam_003, "Kamloops Wind Rose (Kam_003: April 12 - May 03, 2024)")
+
+# --- D) Kam_004 (May 03 – May 24, 2024) ---
+Kam_004 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-05-03") & Date <= as.Date("2024-05-24"))
+generate_wind_rose(Kam_004, "Kamloops Wind Rose (Kam_004: May 03 - May 24, 2024)")
+
+# --- E) Kam_005 (May 24 – June 12, 2024) ---
+Kam_005 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-05-24") & Date <= as.Date("2024-06-12"))
+generate_wind_rose(Kam_005, "Kamloops Wind Rose (Kam_005: May 24 - June 12, 2024)")
+
+# --- F) Kam_006 (June 12 – July 3, 2024) ---
+Kam_006 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-06-12") & Date <= as.Date("2024-07-03"))
+generate_wind_rose(Kam_006, "Kamloops Wind Rose (Kam_006: June 12 - July 3, 2024)")
+
+# --- G) Kam_007 (July 3 – July 10, 2024) ---
+Kam_007 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-07-03") & Date <= as.Date("2024-07-10"))
+generate_wind_rose(Kam_007, "Kamloops Wind Rose (Kam_007: July 3 - July 10, 2024)")
+
+# --- H) Kam_008 (July 10 – July 17, 2024) ---
+Kam_008 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-07-10") & Date <= as.Date("2024-07-17"))
+generate_wind_rose(Kam_008, "Kamloops Wind Rose (Kam_008: July 10 - July 17, 2024)")
+
+# --- I) Kam_009 (July 17 – July 24, 2024) ---
+Kam_009 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-07-17") & Date <= as.Date("2024-07-24"))
+generate_wind_rose(Kam_009, "Kamloops Wind Rose (Kam_009: July 17 - July 24, 2024)")
+
+# --- J) Kam_010 (July 24 – August 8, 2024) ---
+Kam_010 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-07-24") & Date <= as.Date("2024-08-08"))
+generate_wind_rose(Kam_010, "Kamloops Wind Rose (Kam_010: July 24 - August 8, 2024)")
+
+# --- K) Kam_011 (August 8 – August 14, 2024) ---
+Kam_011 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-08-08") & Date <= as.Date("2024-08-14"))
+generate_wind_rose(Kam_011, "Kamloops Wind Rose (Kam_011: August 8 - August 14, 2024)")
+
+# --- L) Kam_012 (August 14 – September 4, 2024) ---
+Kam_012 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-08-14") & Date <= as.Date("2024-09-04"))
+generate_wind_rose(Kam_012, "Kamloops Wind Rose (Kam_012: August 14 - September 4, 2024)")
+
+# --- M) Kam_013 (September 4 – September 25, 2024) ---
+Kam_013 <- Kamloops_wind_clean %>% filter(Date > as.Date("2024-09-04") & Date <= as.Date("2024-09-25"))
+generate_wind_rose(Kam_013, "Kamloops Wind Rose (Kam_013: September 4 - September 25, 2024)")
+
+#One plot for all of the Kam_(1-13) wind roses
+# Define function to save wind roses as PNGs
+save_wind_rose <- function(dataset, filename) {
+  png(filename, width = 800, height = 800, res = 150)
+  windRose(dataset,
+           ws = "Spd of Max Gust (m/s)",  
+           wd = "Dir of Max Gust (deg)",  
+           statistic = "frequency",       
+           key.header = "Wind Speed (m/s)", 
+           key.position = "right",
+           ws.int = 2,                  
+           wd.int = 22.5,               
+           grid.line = 1,               
+           paddle = FALSE,             
+           breaks = c(0, 2, 4, 6, 8, 10, 15, 20, 25), 
+           col = "Spectral")
+  dev.off()}
+
+# Save each wind rose as a PNG file
+save_wind_rose(Kam_001, "Kam_001.png")
+save_wind_rose(Kam_003, "Kam_003.png")
+save_wind_rose(Kam_004, "Kam_004.png")
+save_wind_rose(Kam_005, "Kam_005.png")
+save_wind_rose(Kam_006, "Kam_006.png")
+save_wind_rose(Kam_007, "Kam_007.png")
+save_wind_rose(Kam_008, "Kam_008.png")
+save_wind_rose(Kam_009, "Kam_009.png")
+save_wind_rose(Kam_010, "Kam_010.png")
+save_wind_rose(Kam_011, "Kam_011.png")
+save_wind_rose(Kam_012, "Kam_012.png")
+save_wind_rose(Kam_013, "Kam_013.png")
+
+# Read images back as raster objects
+Kam_001_plot <- rasterGrob(readPNG("Kam_001.png"), interpolate = TRUE)
+Kam_003_plot <- rasterGrob(readPNG("Kam_003.png"), interpolate = TRUE)
+Kam_004_plot <- rasterGrob(readPNG("Kam_004.png"), interpolate = TRUE)
+Kam_005_plot <- rasterGrob(readPNG("Kam_005.png"), interpolate = TRUE)
+Kam_006_plot <- rasterGrob(readPNG("Kam_006.png"), interpolate = TRUE)
+Kam_007_plot <- rasterGrob(readPNG("Kam_007.png"), interpolate = TRUE)
+Kam_008_plot <- rasterGrob(readPNG("Kam_008.png"), interpolate = TRUE)
+Kam_009_plot <- rasterGrob(readPNG("Kam_009.png"), interpolate = TRUE)
+Kam_010_plot <- rasterGrob(readPNG("Kam_010.png"), interpolate = TRUE)
+Kam_011_plot <- rasterGrob(readPNG("Kam_011.png"), interpolate = TRUE)
+Kam_012_plot <- rasterGrob(readPNG("Kam_012.png"), interpolate = TRUE)
+Kam_013_plot <- rasterGrob(readPNG("Kam_013.png"), interpolate = TRUE)
+
+# Arrange all wind rose images in a grid
+final_plot <- plot_grid(
+  Kam_001_plot, Kam_003_plot, Kam_004_plot, Kam_005_plot,
+  Kam_006_plot, Kam_007_plot, Kam_008_plot, Kam_009_plot,
+  Kam_010_plot, Kam_011_plot, Kam_012_plot, Kam_013_plot,
+  labels = c("Kam_001", "Kam_003", "Kam_004", "Kam_005",
+             "Kam_006", "Kam_007", "Kam_008", "Kam_009",
+             "Kam_010", "Kam_011", "Kam_012", "Kam_013"),
+  label_size = 12,  # Adjust label size
+  ncol = 4,  # Arrange plots in 4 columns
+  align = "hv"
+)
+
+# Save the final figure as an image
+ggsave("Kamloops_Wind_Roses_Combined.png", final_plot, width = 15, height = 12, dpi = 300)
+
+# Display the final combined wind rose figure
+print(final_plot)
+
+#KELOWNA
+#Kelowna: Wind roses for each of the sampler periods
+# --- A) March 22 - September 25, 2024 ---
+#WIND ROSES FOR ALL THE SAMPLER TIMES
+# Define function to generate wind roses for a given dataset and time period
+generate_wind_rose <- function(dataset, title) {
+  windRose(dataset,
+           ws = "Spd of Max Gust (m/s)",  
+           wd = "Dir of Max Gust (deg)",  
+           statistic = "frequency",      
+           key.header = "Wind Speed (m/s)", 
+           key.position = "right",
+           ws.int = 2,                  
+           wd.int = 22.5,               
+           grid.line = 5,              
+           paddle = FALSE,             
+           breaks = c(0, 2, 4, 6, 8, 10, 15, 20, 25), 
+           col = "Spectral",
+           main = title)}
+
+#Kelowna: Wind roses for each of the sampler periods
+# --- A) March 22 - September 25, 2024 ---
+Kel_A <- Kelowna_wind %>%
+  filter(Date >= as.Date("2024-03-22") & Date <= as.Date("2024-09-25"))
+generate_wind_rose(Kel_A, "Kelowna Total Study Period (March 22 - September 25, 2024)")
+
+#Reset the count cutoffs - Define function to generate wind roses with proper frequency breaks
+generate_wind_rose <- function(dataset, title) {
+  windRose(dataset,
+           ws = "Spd of Max Gust (m/s)",  
+           wd = "Dir of Max Gust (deg)",  
+           statistic = "frequency",       # Ensure frequency counts, not percentages
+           key.header = "Wind Speed (m/s)", 
+           key.position = "right",
+           ws.int = 2,                  
+           wd.int = 22.5,               
+           grid.line = 1,               # Set grid line to ensure visible counts (1, 2, 3, 4, 5, etc.)
+           paddle = FALSE,             
+           breaks = c(0, 2, 4, 6, 8, 10, 15, 20, 25), 
+           col = "Spectral",
+           main = title)}
+
+# --- B) Kam_001 (March 22 – April 12, 2024) ---
+Kel_001 <- Kelowna_wind_clean %>% filter(Date >= as.Date("2024-03-22") & Date <= as.Date("2024-04-12"))
+generate_wind_rose(Kel_001, "Kelowna Wind Rose (Kel_001: March 22 - April 12, 2024)")
+
+# --- C) Kam_003 (April 12 – May 03, 2024) ---
+Kel_003 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-04-12") & Date <= as.Date("2024-05-03"))
+generate_wind_rose(Kel_003, "Kelowna Wind Rose (Kel_003: April 12 - May 03, 2024)")
+
+# --- D) Kam_004 (May 03 – May 24, 2024) ---
+Kel_004 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-05-03") & Date <= as.Date("2024-05-24"))
+generate_wind_rose(Kel_004, "Kelowna Wind Rose (Kel_004: May 03 - May 24, 2024)")
+
+# --- E) Kam_005 (May 24 – June 12, 2024) ---
+Kel_005 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-05-24") & Date <= as.Date("2024-06-12"))
+generate_wind_rose(Kel_005, "Kelowna Wind Rose (Kel_005: May 24 - June 12, 2024)")
+
+# --- F) Kam_006 (June 12 – July 3, 2024) ---
+Kel_006 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-06-12") & Date <= as.Date("2024-07-03"))
+generate_wind_rose(Kel_006, "Kelowna Wind Rose (Kel_006: June 12 - July 3, 2024)")
+
+# --- G) Kam_007 (July 3 – July 10, 2024) ---
+Kel_007 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-07-03") & Date <= as.Date("2024-07-10"))
+generate_wind_rose(Kel_007, "Kelowna Wind Rose (Kel_007: July 3 - July 10, 2024)")
+
+# --- H) Kam_008 (July 10 – July 17, 2024) ---
+Kel_008 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-07-10") & Date <= as.Date("2024-07-17"))
+generate_wind_rose(Kel_008, "Kelowna Wind Rose (Kel_008: July 10 - July 17, 2024)")
+
+# --- I) Kam_009 (July 17 – July 24, 2024) ---
+Kel_009 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-07-17") & Date <= as.Date("2024-07-24"))
+generate_wind_rose(Kel_009, "Kelowna Wind Rose (Kel_009: July 17 - July 24, 2024)")
+
+#I STOPPED HERE
+# --- J) Kam_010 (July 24 – August 8, 2024) ---
+Kel_010 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-07-24") & Date <= as.Date("2024-08-08"))
+generate_wind_rose(Kel_010, "Kelowna Wind Rose (Kel_010: July 24 - August 8, 2024)")
+
+# --- K) Kam_011 (August 8 – August 14, 2024) ---
+Kel_011 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-08-08") & Date <= as.Date("2024-08-14"))
+generate_wind_rose(Kel_011, "Kelowna Wind Rose (Kel_011: August 8 - August 14, 2024)")
+
+# --- L) Kam_012 (August 14 – September 4, 2024) ---
+Kel_012 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-08-14") & Date <= as.Date("2024-09-04"))
+generate_wind_rose(Kel_012, "Kelowna Wind Rose (Kel_012: August 14 - September 4, 2024)")
+
+# --- M) Kam_013 (September 4 – September 25, 2024) ---
+Kel_013 <- Kelowna_wind_clean %>% filter(Date > as.Date("2024-09-04") & Date <= as.Date("2024-09-25"))
+generate_wind_rose(Kel_013, "Kelowna Wind Rose (Kel_013: September 4 - September 25, 2024)")
+
+#One plot for all of the Kam_(1-13) wind roses
+# Define function to save wind roses as PNGs
+save_wind_rose <- function(dataset, filename) {
+  png(filename, width = 800, height = 800, res = 150)
+  windRose(dataset,
+           ws = "Spd of Max Gust (m/s)",  
+           wd = "Dir of Max Gust (deg)",  
+           statistic = "frequency",       
+           key.header = "Wind Speed (m/s)", 
+           key.position = "right",
+           ws.int = 2,                  
+           wd.int = 22.5,               
+           grid.line = 1,               
+           paddle = FALSE,             
+           breaks = c(0, 2, 4, 6, 8, 10, 15, 20, 25), 
+           col = "Spectral")
+  dev.off()}
+
+# Save each wind rose as a PNG file
+save_wind_rose(Kel_001, "Kel_001.png")
+save_wind_rose(Kel_003, "Kel_003.png")
+save_wind_rose(Kel_004, "Kel_004.png")
+save_wind_rose(Kel_005, "Kel_005.png")
+save_wind_rose(Kel_006, "Kel_006.png")
+save_wind_rose(Kel_007, "Kel_007.png")
+save_wind_rose(Kel_008, "Kel_008.png")
+save_wind_rose(Kel_009, "Kel_009.png")
+save_wind_rose(Kel_010, "Kel_010.png")
+save_wind_rose(Kel_011, "Kel_011.png")
+save_wind_rose(Kel_012, "Kel_012.png")
+save_wind_rose(Kel_013, "Kel_013.png")
+
+# Read images back as raster objects
+Kel_001_plot <- rasterGrob(readPNG("Kel_001.png"), interpolate = TRUE)
+Kel_003_plot <- rasterGrob(readPNG("Kel_003.png"), interpolate = TRUE)
+Kel_004_plot <- rasterGrob(readPNG("Kel_004.png"), interpolate = TRUE)
+Kel_005_plot <- rasterGrob(readPNG("Kel_005.png"), interpolate = TRUE)
+Kel_006_plot <- rasterGrob(readPNG("Kel_006.png"), interpolate = TRUE)
+Kel_007_plot <- rasterGrob(readPNG("Kel_007.png"), interpolate = TRUE)
+Kel_008_plot <- rasterGrob(readPNG("Kel_008.png"), interpolate = TRUE)
+Kel_009_plot <- rasterGrob(readPNG("Kel_009.png"), interpolate = TRUE)
+Kel_010_plot <- rasterGrob(readPNG("Kel_010.png"), interpolate = TRUE)
+Kel_011_plot <- rasterGrob(readPNG("Kel_011.png"), interpolate = TRUE)
+Kel_012_plot <- rasterGrob(readPNG("Kel_012.png"), interpolate = TRUE)
+Kel_013_plot <- rasterGrob(readPNG("Kel_013.png"), interpolate = TRUE)
+
+# Arrange all wind rose images in a grid
+kelowna_final_plot <- plot_grid(
+  Kel_001_plot, Kel_003_plot, Kel_004_plot, Kel_005_plot,
+  Kel_006_plot, Kel_007_plot, Kel_008_plot, Kel_009_plot,
+  Kel_010_plot, Kel_011_plot, Kel_012_plot, Kel_013_plot,
+  labels = c("Kel_001", "Kel_003", "Kel_004", "Kel_005",
+             "Kel_006", "Kel_007", "Kel_008", "Kel_009",
+             "Kel_010", "Kel_011", "Kel_012", "Kel_013"),
+  label_size = 12,  # Adjust label size
+  ncol = 4,  # Arrange plots in 4 columns
+  align = "hv")
+
+# Save the final figure as an image
+ggsave("Kelowna_Wind_Roses_Combined.png", kelowna_final_plot, width = 15, height = 12, dpi = 300)
+
+# Display the final combined wind rose figure
+print(kelowna_final_plot)

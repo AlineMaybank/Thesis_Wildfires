@@ -4,7 +4,7 @@
 #Here are the currently misaligned datasets:
     #PM2.5 = hourly
     #WFS threshold= daily
-    #chemical data = Sampler period (which is broken up by hour and by day)
+    #chemical data = Sampler period (which is broken up by hour and by day) 
 
 #What I am specifcialy trying to fix/do:
 #For my analysis, I need to define hourly concentrations as WFS or non-WFS so I 

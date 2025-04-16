@@ -10,10 +10,14 @@ library(dplyr)
 library(ggplot2)
 library(readr)
 library(lubridate)
+library(sf) 
 
 # Load Kamloops and Kelowna hourly PM2.5 datasets
 load("kamloops_hourly.RData")
 load("kelowna_hourly.RData")
+
+kamloops_hourly <- st_drop_geometry(kamloops_hourly)
+kelowna_hourly <- st_drop_geometry(kelowna_hourly)
 
 # Ensure Date column is in POSIXct format
 kamloops_hourly$Date <- as.POSIXct(kamloops_hourly$Date, format="%Y-%m-%d %H:%M:%S")
@@ -240,5 +244,73 @@ print(wfs_days_per_sampler_kelowna)
 #7 Kel_013                3
 
 # Save updated datasets
-save(kamloops_hourly, file = "kamloops_hourly_updated.RData")
-save(kelowna_hourly, file = "kelowna_hourly_updated.RData")
+# Save each object as an .rds file
+saveRDS(kamloops_hourly, file = "cleaned_kamloops_hourly.rds")
+saveRDS(kelowna_hourly, file = "cleaned_kelowna_hourly.rds")
+
+
+#Create table that showcases the %WFS days for Kamloops and Kelowna:
+# Count and percentage of WFS days per sampler period for Kamloops
+#Kamloops:
+# Count and percentage of WFS days per sampler period for Kamloops (corrected version)
+wfs_percentage_per_sampler_kamloops <- kamloops_hourly %>%
+  filter(WFS == "WFS") %>%
+  mutate(WFS_Date = as.Date(Date)) %>%
+  distinct(Sampler_ID, WFS_Date) %>%
+  group_by(Sampler_ID) %>%
+  summarise(WFS_Days = n(), .groups = "drop") %>%
+  right_join(sampler_periods_kamloops %>%
+               mutate(Total_Days = as.numeric(difftime(as.Date(End_Date), as.Date(Start_Date), units = "days")) + 1),
+             by = "Sampler_ID") %>%
+  mutate(WFS_Days = ifelse(is.na(WFS_Days), 0, WFS_Days),
+         WFS_Percentage = (WFS_Days / Total_Days) * 100)
+
+print(wfs_percentage_per_sampler_kamloops)
+#CORRECT [just not correct order of results]
+#   Sampler_ID WFS_Days Start_Date          End_Date            Total_Days WFS_Percentage
+#1 Kam_009           5 2024-07-17 15:00:00 2024-07-24 14:20:00          8           62.5
+#2 Kam_010           3 2024-07-24 14:40:00 2024-08-08 13:55:00         16           18.8
+#3 Kam_011           2 2024-08-08 14:00:00 2024-08-14 10:27:00          7           28.6
+#4 Kam_012           3 2024-08-14 10:38:00 2024-09-04 10:11:00         22           13.6
+#5 Kam_013           3 2024-09-04 10:18:00 2024-09-25 10:23:00         22           13.6
+#6 Kam_001           0 2024-03-22 15:00:00 2024-04-12 14:00:00         22            0  
+#7 Kam_002           0 2024-03-22 15:00:00 2024-04-12 14:00:00         22            0  
+#8 Kam_003           0 2024-04-12 14:30:00 2024-05-03 14:00:00         22            0  
+#9 Kam_004           0 2024-05-03 14:30:00 2024-05-24 14:30:00         22            0  
+#10 Kam_005           0 2024-05-24 14:30:00 2024-06-12 10:35:00         20            0  
+#11 Kam_006           0 2024-06-12 10:40:00 2024-07-03 14:00:00         22            0  
+#12 Kam_007           0 2024-07-03 14:00:00 2024-07-10 14:00:00          8            0  
+#13 Kam_008           0 2024-07-10 14:00:00 2024-07-17 15:00:00          8            0  
+#14 Kam_014           0 2024-09-04 10:18:00 2024-09-25 10:23:00         22            0 
+
+#Kelowna:
+# Count and percentage of WFS days per sampler period for Kelowna (corrected version)
+wfs_percentage_per_sampler_kelowna <- kelowna_hourly %>%
+  filter(WFS == "WFS") %>%
+  mutate(WFS_Date = as.Date(Date)) %>%
+  distinct(Sampler_ID, WFS_Date) %>%
+  group_by(Sampler_ID) %>%
+  summarise(WFS_Days = n(), .groups = "drop") %>%
+  right_join(sampler_periods_kelowna %>%
+               mutate(Total_Days = as.numeric(difftime(as.Date(End_Date), as.Date(Start_Date), units = "days")) + 1),
+             by = "Sampler_ID") %>%
+  mutate(WFS_Days = ifelse(is.na(WFS_Days), 0, WFS_Days),
+         WFS_Percentage = (WFS_Days / Total_Days) * 100)
+
+print(wfs_percentage_per_sampler_kelowna)
+#CORRECT (just not correct order of samplers)
+#Sampler_ID WFS_Days Start_Date          End_Date            Total_Days WFS_Percentage
+#1 Kel_007           1 2024-07-03 14:00:00 2024-07-10 14:00:00          8           12.5
+#2 Kel_008           2 2024-07-10 14:00:00 2024-07-17 15:00:00          8           25  
+#3 Kel_009           3 2024-07-17 15:00:00 2024-07-24 14:20:00          8           37.5
+#4 Kel_010           5 2024-07-24 14:40:00 2024-08-08 13:55:00         16           31.2
+#5 Kel_011           4 2024-08-08 14:00:00 2024-08-14 10:27:00          7           57.1
+#6 Kel_012           3 2024-08-14 10:38:00 2024-09-04 10:11:00         22           13.6
+#7 Kel_013           3 2024-09-04 10:18:00 2024-09-25 10:23:00         22           13.6
+#8 Kel_001           0 2024-03-22 15:00:00 2024-04-12 14:00:00         22            0  
+#9 Kel_002           0 2024-03-22 15:00:00 2024-04-12 14:00:00         22            0  
+#10 Kel_003           0 2024-04-12 14:30:00 2024-05-03 14:00:00         22            0  
+#11 Kel_004           0 2024-05-03 14:30:00 2024-05-24 14:30:00         22            0  
+#12 Kel_005           0 2024-05-24 14:30:00 2024-06-12 10:35:00         20            0  
+#13 Kel_006           0 2024-06-12 10:40:00 2024-07-03 14:00:00         22            0  
+#14 Kel_014           0 2024-09-04 10:18:00 2024-09-25 10:23:00         22            0 

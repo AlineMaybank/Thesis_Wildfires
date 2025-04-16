@@ -1,3 +1,5 @@
+#a_07_wildfireperimeter
+
 #GroundOverlay_wildfire_Perimeter
 
 #Wildfire perimeter
@@ -50,7 +52,6 @@ st_write(kamloops_kelowna_fires, "kamloops_fire_points_2024.kml", driver = "KML"
 
 #------------------------------------------------------------
 #Wildfire Perimeters
-#From: View or Export BC Geographic Warehouse details (custom download) 
 getwd()
 #"/Users/alinemaybank/Desktop/thesis/Analysis"
 
@@ -75,26 +76,41 @@ leaflet(kamloops_wgs84) %>%
   addScaleBar(position = "bottomleft") %>%
   addLegend("bottomright", colors = "orange", labels = "Kamloops 2024 Fires")
 
-#Now do all fires in BC in 2024
-All_fire_perimeters <- st_read("All_BC_Fires/PROT_HISTORICAL_FIRE_POLYS_SP/H_FIRE_PLY_polygon.shp")
-names(All_fire_perimeters) 
-head(All_fire_perimeters)
-#Subset to only 2024 fires in bc
-All_fire_perimeters <- All_fire_perimeters %>%
-  mutate(FIRE_DATE = as.Date(FIRE_DATE, format = "%Y%m%d"))
 
-fires_2024 <- All_fire_perimeters %>%
-  filter(format(FIRE_DATE, "%Y") == "2024")
-fires_2024 <- st_transform(fires_2024, crs = 4326)
+#Map Kelowna and Kamloops on the wildfire perimeter map
+# Coordinates
+# Coordinates
+city_coords <- data.frame(
+  city = c("Kamloops", "Kelowna"),
+  lat = c(50.6756, 49.8863),
+  lon = c(-120.3394, -119.4966),
+  color = c("black", "blue")
+)
 
-
-head(fires_2024)
-
-leaflet(fires_2024) %>%
+leaflet(kamloops_wgs84) %>%
   addTiles() %>%
   addPolygons(
     fillColor = "orange",
     fillOpacity = 0.6,
     color = "darkred",
     weight = 1,
-    label = ~paste0("Fire ", FIRE_NO, ": ", SIZE_HA, " ha"))
+    label = ~FIRE_NO
+  ) %>%
+  addMarkers(
+    data = city_coords,
+    lng = ~lon,
+    lat = ~lat,
+    popup = ~city,
+    icon = ~makeIcon(
+      iconUrl = "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-" %+% color %+% ".png",
+      iconWidth = 25, iconHeight = 41,
+      iconAnchorX = 12, iconAnchorY = 41
+    )
+  ) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend(
+    position = "bottomright",
+    colors = "orange",
+    labels = "2024 Fires",
+    title = "Legend"
+  )

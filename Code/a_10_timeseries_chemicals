@@ -1,0 +1,83 @@
+#a_10_timeseries_chemicals
+#Make a time-series in the early months of the year to investigate any chemical related 
+
+#This code was given to me from Dr. Eric Coker
+#read in the required packages
+library(gtools)
+library(PReMiuM)
+library(dplyr)
+library(gtsummary)
+library(corrplot) 
+library(ggplot2)
+library(tidyverse)
+install.packages("gtools")
+library(gtools)
+
+# Step 1: Read the data
+library(tidyverse)
+library(gtools)
+
+# Read and reshape
+df <- read.csv("BCWildfire_Cleaned_Data_AnalysisReady.csv")
+
+# Convert from wide to long
+df_long <- df %>%
+  pivot_longer(
+    cols = -(Compounds:Site),  # Keep Compounds and Site
+    names_to = "pollutant",
+    values_to = "value"
+  )
+
+# Rename for clarity
+df_long <- df_long %>%
+  rename(SamplerID = Compounds, Region = Site)
+
+# Order sampler IDs properly
+df_long$SamplerID <- factor(df_long$SamplerID, levels = mixedsort(unique(df_long$SamplerID)))
+
+# Plot for Kelowna
+df_long %>%
+  filter(Region == "Kelowna") %>%
+  ggplot(aes(x = SamplerID, y = value, color = pollutant, group = pollutant)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Pollutant Concentrations Across Kelowna Samplers",
+    x = "Sampler ID",
+    y = "Concentration (ng/m³)",
+    color = "Pollutant"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#Plot for Kamloops
+df_long %>%
+  filter(Region == "Kamloops") %>%
+  ggplot(aes(x = SamplerID, y = value, color = pollutant, group = pollutant)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Pollutant Concentrations Across Kamloops Samplers",
+    x = "Sampler ID",
+    y = "Concentration (ng/m³)",
+    color = "Pollutant"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#KELOWNA - Which chemical is the max?
+df_long %>%
+  filter(Region == "Kelowna") %>%
+  group_by(pollutant) %>%
+  summarise(max_value = max(value, na.rm = TRUE)) %>%
+  arrange(desc(max_value)) %>%
+  slice(1:5)  # Top 5 if you’re curious
+
+
+#KAMLOOPS - Which chemical is the max?
+df_long %>%
+  filter(Region == "Kamloops") %>%
+  group_by(pollutant) %>%
+  summarise(max_value = max(value, na.rm = TRUE)) %>%
+  arrange(desc(max_value)) %>%
+  slice(1:5)  # Top 5 if you’re curious

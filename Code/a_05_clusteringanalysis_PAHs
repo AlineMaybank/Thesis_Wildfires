@@ -1,0 +1,203 @@
+#a_05_clusteranalysis_PAHs
+#Cluster Analysis of the targeted PAHs
+
+#This code was given to me from Dr. Eric Coker
+#read in the required packages
+library(gtools)
+library(PReMiuM)
+library(dplyr)
+library(gtsummary)
+library(corrplot) 
+library(ggplot2)
+
+getwd()
+#Read in the datset
+df <- read.csv("BCWildfire_Cleaned_Data_AnalysisReady.csv")
+#targeted chemical data
+# setwd(/Users/alinemaybank/Desktop/thesis/Analysis)
+
+
+#Reclassify concentrations into tertiles for all chemicals
+#However, the cluster analysis focuses on the six PAHs
+df$Di.n.butyl.phthalate_cat<- quantcut(df$Di.n.butyl.phthalate,q=3)
+df$Dimethyl.phthalate_cat<- quantcut(df$Dimethyl.phthalate,q=3)
+df$X1.3.4.6.7.8.Hexahydro.4.6.6.7.8.8.hexamethylcyclopenta.g..2.benzopyran_cat<- quantcut(df$X1.3.4.6.7.8.Hexahydro.4.6.6.7.8.8.hexamethylcyclopenta.g..2.benzopyran,q=3)
+df$Homosalate_cat<- quantcut(df$Homosalate,q=3)
+df$Tris.1.Chloro.2.propyl..phosphate_cat<- quantcut(df$Tris.1.Chloro.2.propyl..phosphate,q=3)
+df$Diethyl.phthalate_cat<- quantcut(df$Diethyl.phthalate,q=3)
+df$X4.Nitroaniline_cat<- quantcut(df$X4.Nitroaniline,q=3)
+df$Benzothiazole_cat<- quantcut(df$Benzothiazole,q=3)
+df$Di.n.octyl.phthalate_cat<- quantcut(df$Di.n.octyl.phthalate,q=3)
+df$Isophorone_cat<- quantcut(df$Isophorone,q=3)
+df$Phenanthrene_cat<- quantcut(df$Phenanthrene,q=3)
+df$Benzophenone_cat<- quantcut(df$Benzophenone,q=3)
+df$Anthracene_cat<- quantcut(df$Anthracene,q=3)
+df$Nicotine_cat<- quantcut(df$Nicotine,q=3)
+df$Hexachloroethane_cat<- quantcut(df$Hexachloroethane,q=3)
+df$X1.2.Dichlorobenzene_cat<- quantcut(df$X1.2.Dichlorobenzene,q=3)
+df$Hexachlorobutadiene_cat<- quantcut(df$Hexachlorobutadiene,q=3)
+df$Dibenzofuran_cat<- quantcut(df$Dibenzofuran,q=3)
+df$X1.4.Dichlorobenzene_cat<- quantcut(df$X1.4.Dichlorobenzene,q=3)
+df$Hexachlorobenzene_cat<- quantcut(df$Hexachlorobenzene,q=3)
+df$Chrysene_cat<- quantcut(df$Chrysene,q=3)
+df$Piperonyl.Butoxide_cat<- quantcut(df$Piperonyl.Butoxide,q=3)
+df$Butylbenzyl.phthalate_cat<- quantcut(df$Butylbenzyl.phthalate,q=3)
+df$X4.4..DDE_cat<- quantcut(df$X4.4..DDE,q=3)
+df$Pyrene_cat<- quantcut(df$Pyrene,q=3)
+df$N.Nitrosodiphenylamine_cat<- quantcut(df$N.Nitrosodiphenylamine,q=3)
+df$Bis.2.chloro.1.methylethyl..ether_cat<- quantcut(df$Bis.2.chloro.1.methylethyl..ether,q=3)
+df$Myristicin_cat<- quantcut(df$Myristicin,q=3)
+df$Fluorene_cat<- quantcut(df$Fluorene,q=3)
+df$X1.2.4.Trichlorobenzene_cat<- quantcut(df$X1.2.4.Trichlorobenzene,q=3)
+df$Triphenyl.Phosphate_cat<- quantcut(df$Triphenyl.Phosphate,q=3)
+df$X2.Methylnaphthalene_cat_cat<- quantcut(df$X2.Methylnaphthalene,q=3)
+
+names(df) #confirm that the PAH variables in the columns specified below
+covs<- names(df[,c(45,47,55,59,63,66)]) #get names of PAHs and assign to "covs" object
+df$y.fake<- rnorm(length(df$Compounds)) #generate a "fake" variable because we are not modeling a response variable
+
+#initiate the cluster analysis with Bayesian Profile Regression using the PReMiuM package in R
+profiles_PAH<- profRegr(covNames = covs,xModel="Discrete",
+                              outcome="y.fake",
+                              yModel="Normal",
+                              excludeY = T,
+                              output="pah_profiles",
+                              nSweeps=25000, nBurn=5000,
+                              nClusInit = 20,
+                              data=df)
+
+mat_PAH<- calcDissimilarityMatrix(profiles_PAH) #calculate dissimilarity matrix
+clus_PAH<- calcOptimalClustering(mat_PAH) #estimate optimal clustering
+df$clusters<- clus_PAH$clustering #attach clusters to the dataset
+risks_PAH<-calcAvgRiskAndProfile(clus_PAH) #calculate risk profiles
+save(risks_PAH,file="riskProfiles_02272025.rdata") #save the risk profile object
+clusterOrderObj <- plotRiskProfile(risks_PAH, "cimd_clusters_zScores_02272025.png") #now plot the risk profiles
+
+#Generate new sample ID variable for post-processing of clusters
+df$SampleID<- factor(df$Compounds,
+                                 levels=c("KEL1",
+                                          "KEL2",
+                                          "KEL3",
+                                          "KEL4",
+                                          "KEL5",
+                                          "KEL6",
+                                          "KEL7",
+                                          "KEL8",
+                                          "KEL9",
+                                          "KEL10",
+                                          "KEL11",
+                                          "KEL12",
+                                          "KEL13",
+                                          "KAM1",
+                                          "KAM2",
+                                          "KAM3",
+                                          "KAM4",
+                                          "KAM5",
+                                          "KAM6",
+                                          "KAM7",
+                                          "KAM8",
+                                          "KAM9",
+                                          "KAM10",
+                                          "KAM11",
+                                          "KAM12",
+                                          "KAM13",
+                                          "KAM14"))
+
+
+#plot a quasi-time series of the clusters
+ggplot(df,aes(x=SampleID,y=clusters)) +
+  geom_point()
+
+#subset the data for data summaries
+df.sub <- df[,c(13,15,23,27,31,34,45,47,55,59,63,66,68)]
+df.sub %>% 
+  tbl_summary(by=clusters) %>%
+  add_overall() %>%
+  add_p()
+
+#generate correlation plots
+df.cor<- df.sub[,1:6] #subset to the PAHs of interest
+
+cors<- cor(df.cor)
+
+corrplot(cors, method="number",
+         order="hclust")
+
+hc <- hclust(as.dist(1 - cors), method = "complete")  # Use your correlation matrix
+
+
+dendogram<- plot(hc, labels = colnames(cors), main = "Dendrogram of Variables")
+
+#reshape the data for data visualizations
+library(reshape2)
+df.sub.melted<- melt(df.sub[,c(1:6,13)],id="clusters")
+
+df.sub.melted %>%
+  ggplot(aes(x=factor(clusters),y=value,fill=factor(clusters))) +
+  geom_boxplot(alpha=0.75) +
+  # geom_boxplot(alpha=0.5) +
+  facet_wrap(~variable, scales="free_y",nrow=1)+
+  theme_minimal()
+
+df.sub.melted %>%
+  ggplot(aes(x=factor(clusters),y=value,fill=factor(clusters))) +
+  # geom_violin() +
+  geom_violin(alpha=0.75) +
+  facet_wrap(~variable, scales="free_y",nrow=1)+
+  theme_minimal()
+
+df.summary<- df.sub[,c(1:6,13)] %>%
+  group_by(clusters) %>%
+  summarize(Phenanthrene=mean(Phenanthrene),
+            Anthracene=mean(Anthracene),
+            Chrysene=mean(Chrysene),
+            Pyrene=mean(Pyrene),
+            Fluorene=mean(Fluorene),
+            Methylnaphthalene=mean(X2.Methylnaphthalene))
+
+df.summary.melted<- melt(df.summary,id="clusters")
+
+df.summary.melted %>%
+  ggplot(aes(x=factor(clusters), y=value, fill=factor(clusters))) +
+  geom_bar(stat="identity") +
+  facet_wrap(~variable, scales="free_y") +
+  theme_minimal() +  # Use a minimal theme to start with
+  theme(
+    panel.background = element_rect(fill = "transparent", color = NA), # Transparent panel
+    plot.background = element_rect(fill = "transparent", color = NA),  # Transparent plot
+    legend.background = element_rect(fill = "transparent", color = NA) # Transparent legend
+  )
+
+
+df.cats<- df %>% select(clusters, SampleID)
+
+total<- nrow(df)
+df.cats.ag<- df.cats %>%
+  group_by(SampleID) %>%
+  summarize(Number=n(),
+            Proportion=Number/total)
+
+ggplot(df,aes(x=SampleID,y=clusters)) +
+  geom_point()  +
+  ylab("Cluster Assignment")
+
+#Kelowna:
+#Cluster 1= Kel_001, Kel_004, Kel_005, Kel_006
+#Cluster 2= Kel_002, Kel_010, Kel_011, Kel_012, Kel_013
+#Cluster 3= Kel_007, Kel_008, Kel_009
+#Kel_003 is missing - lost
+
+#Kamloops:
+#Cluster 1= Kam_001, Kam_004, Kam_005, Kam_012
+#Cluster 2= Kam_002, Kam_003, Kam_006, Kam_013, Kam_14
+#Cluster 3= Kam_007, Kam_008, Kam_009, Kam_010, Kam_011
+#there shouldnt be a Kam_014 - no lost
+#REMOVE FOR THE PAPER
+
+#Make ammendments based on:
+#Also, Kel_002 and Kam_002 are field blanks. Shouldn’t those also be excluded from the analysis?
+#The following samples should be excluded:
+#Kel_002 (aka KEL_2)
+#Kel_003 (aka (KEL_3)
+#Kam_002 (aka KAM_2)
+#Kam_014 (aka KAM_14)

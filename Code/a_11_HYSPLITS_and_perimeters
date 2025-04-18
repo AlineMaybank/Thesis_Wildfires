@@ -1,0 +1,394 @@
+#a_11_HYSPLITS_and_perimeters
+
+# Load required libraries
+library(sf)
+library(dplyr)
+library(purrr)
+library(leaflet)
+library(leaflet.extras)
+library(htmlwidgets)
+library(htmltools)
+
+
+#----------------------------
+# 1. Read in wildfire perimeters
+#----------------------------
+wildfire_kml <- "wildfire_perimeters_all_BC_2024.kml"
+
+BC_allwildfire <- st_read(wildfire_kml) %>%
+  filter(st_geometry_type(.) %in% c("POLYGON", "MULTIPOLYGON")) %>%  # keep only polygons
+  st_zm(drop = TRUE, what = "ZM")  # drop Z/M dimensions
+
+#----------------------------
+# 2. Define KMZ import function (Kamloops)
+#----------------------------
+read_kmz_trajectories <- function(kmz_path) {
+  unzip_dir <- tempfile()
+  unzip(kmz_path, exdir = unzip_dir)
+  kml_file <- list.files(unzip_dir, pattern = "\\.kml$", full.names = TRUE)[1]
+  
+  # Get trajectory layers (e.g., "500.0 m AGL Trajectory", etc.)
+  layer_names <- st_layers(kml_file)$name
+  traj_layers <- layer_names[grepl("AGL Trajectory", layer_names)]
+  
+  if (length(traj_layers) == 0) {
+    warning(paste("No trajectory layers found in", kmz_path))
+    return(NULL)
+  }
+  
+  # Read all LINESTRING geometries from each layer
+  traj_list <- map(traj_layers, function(layer) {
+    sf_obj <- st_read(kml_file, layer = layer, quiet = TRUE)
+    sf_obj %>% filter(st_geometry_type(.) == "LINESTRING")
+  })
+  
+  bind_rows(traj_list)
+}
+
+#----------------------------
+# 3. Import Kamloops HYSPLITs
+#----------------------------
+kmz_dir <- "final_HYSPLITs/Kamloops"
+kmz_files <- list.files(kmz_dir, pattern = "\\.kmz$", full.names = TRUE)
+
+kamloops_hysplits <- map(kmz_files, read_kmz_trajectories) %>%
+  compact() %>%  # remove NULLs
+  map2_dfr(seq_along(.), ., ~mutate(.y, city = "Kamloops", run = .x)) %>%  # add metadata
+  st_zm(drop = TRUE, what = "ZM")  # drop Z/M dimensions
+
+#----------------------------
+# 4. Plot wildfire perimeters + HYSPLIT lines
+#----------------------------
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = BC_allwildfire, color = "orange", fillOpacity = 0.2, weight = 2) %>%
+  addPolylines(data = kamloops_hysplits, color = "black", weight = 1) %>%
+  addLegend(position = "bottomright", colors = "orange", labels = "2024 Fires")
+
+#----------------------------
+# 5. EDITS
+#----------------------------
+#KELOWNA
+# Load required libraries
+# Ensure CRS is correct
+BC_allwildfire <- st_transform(BC_allwildfire, crs = 4326)
+
+# --------------------------
+# Load Kelowna HYSPLIT data
+# --------------------------
+read_kmz_trajectories <- function(kmz_path) {
+  unzip_dir <- tempfile()
+  unzip(kmz_path, exdir = unzip_dir)
+  kml_file <- list.files(unzip_dir, pattern = "\\.kml$", full.names = TRUE)[1]
+  layers <- st_layers(kml_file)$name
+  traj_layers <- layers[grepl("AGL Trajectory", layers)]
+  if (length(traj_layers) == 0) return(NULL)
+  
+  traj_list <- map(traj_layers, function(layer) {
+    sf_obj <- st_read(kml_file, layer = layer, quiet = TRUE)
+    sf_obj %>% filter(st_geometry_type(.) == "LINESTRING")
+  })
+  
+  bind_rows(traj_list)
+}
+
+kelowna_dir <- "final_HYSPLITs/Kelowna"
+kelowna_kmz_files <- list.files(kelowna_dir, pattern = "\\.kmz$", full.names = TRUE)
+
+kelowna_hysplits <- map(kelowna_kmz_files, read_kmz_trajectories) %>%
+  compact() %>%
+  map2_dfr(seq_along(.), ., ~mutate(.y, city = "Kelowna", run = .x)) %>%
+  st_zm(drop = TRUE, what = "ZM") %>%
+  st_transform(crs = 4326)
+
+# --------------------------
+# Kelowna pin location
+# --------------------------
+kelowna_point <- data.frame(
+  lat = 49.888,
+  lon = -119.496,
+  name = "Kelowna"
+)
+
+# --------------------------
+# Map function with bigger scale bar + custom legend + pin
+# --------------------------
+create_kelowna_map <- function(run_number, wildfire_data, hysplit_data, kelowna_coords) {
+  subset_data <- hysplit_data %>% filter(run == run_number)
+  
+  leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
+    addProviderTiles(providers$Esri.WorldTopoMap) %>%
+    
+    # Wildfire perimeters
+    addPolygons(data = wildfire_data, color = "orange", fillOpacity = 0.3, weight = 2) %>%
+    
+    # HYSPLIT trajectories
+    addPolylines(data = subset_data, color = "black", weight = 2.5) %>%
+    
+    # Kelowna pin marker
+    addMarkers(data = kelowna_coords,
+               lng = ~lon, lat = ~lat,
+               label = ~name,
+               popup = ~name,
+               icon = icons(iconUrl = "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+                            iconWidth = 25, iconHeight = 41,
+                            iconAnchorX = 12, iconAnchorY = 41)) %>%
+    
+    # Custom HTML legend with image for pin
+    addControl(
+      html = HTML(
+        "<div style='background:white; padding: 8px; border-radius:6px; box-shadow: 0 0 8px rgba(0,0,0,0.2);'>
+          <div><span style='display:inline-block; width:12px; height:12px; background:orange; margin-right:6px;'></span>2024 Fires</div>
+          <div><span style='display:inline-block; width:12px; height:2px; background:black; margin-right:6px;'></span>Trajectory (500 m AGL)</div>
+          <div><img src='https://cdn-icons-png.flaticon.com/512/684/684908.png' width='12' style='margin-right:6px;'>Kelowna</div>
+        </div>"
+      ),
+      position = "bottomright"
+    ) %>%
+    
+    # Bigger scale bar using custom CSS
+    addScaleBar(position = "bottomleft",
+                options = scaleBarOptions(imperial = TRUE, metric = TRUE, maxWidth = 300)) %>%
+    
+    # NESW Compass
+    addControl(
+      html = "<div style='text-align:center;'>
+                <img src='https://upload.wikimedia.org/wikipedia/commons/6/6b/Compass_Rose_English_North.svg'
+                     style='width:60px;'>
+              </div>",
+      position = "topright"
+    )
+}
+
+# --------------------------
+# Generate & export maps
+# --------------------------
+kelowna_maps <- map(1:9, ~create_kelowna_map(.x, BC_allwildfire, kelowna_hysplits, kelowna_point))
+
+# View in RStudio
+kelowna_maps[[1]]
+kelowna_maps[[2]]
+kelowna_maps[[3]]
+kelowna_maps[[4]]
+kelowna_maps[[5]]
+kelowna_maps[[6]]
+kelowna_maps[[7]]
+kelowna_maps[[8]]
+kelowna_maps[[9]]
+
+# Export
+walk2(kelowna_maps, 1:9, ~saveWidget(.x, file = paste0("KE_", .y, "_HYSPLIT_map.html")))
+
+###---------------------------------
+##- NOW FOR KAMLOOPS
+###---------------------------------
+BC_allwildfire <- st_transform(BC_allwildfire, crs = 4326)
+
+# --------------------------
+# Load Kamloops HYSPLIT data
+# --------------------------
+read_kmz_trajectories <- function(kmz_path) {
+  unzip_dir <- tempfile()
+  unzip(kmz_path, exdir = unzip_dir)
+  kml_file <- list.files(unzip_dir, pattern = "\\.kml$", full.names = TRUE)[1]
+  layers <- st_layers(kml_file)$name
+  traj_layers <- layers[grepl("AGL Trajectory", layers)]
+  if (length(traj_layers) == 0) return(NULL)
+  
+  traj_list <- map(traj_layers, function(layer) {
+    sf_obj <- st_read(kml_file, layer = layer, quiet = TRUE)
+    sf_obj %>% filter(st_geometry_type(.) == "LINESTRING")
+  })
+  
+  bind_rows(traj_list)
+}
+
+kamloops_dir <- "final_HYSPLITs/Kamloops"
+kamloops_kmz_files <- list.files(kamloops_dir, pattern = "\\.kmz$", full.names = TRUE)
+
+kamloops_hysplits <- map(kamloops_kmz_files, read_kmz_trajectories) %>%
+  compact() %>%
+  map2_dfr(seq_along(.), ., ~mutate(.y, city = "Kamloops", run = .x)) %>%
+  st_zm(drop = TRUE, what = "ZM") %>%
+  st_transform(crs = 4326)
+
+# --------------------------
+# Kamloops pin location
+# --------------------------
+kamloops_point <- data.frame(
+  lat = 50.66948,
+  lon = -120.3296,
+  name = "Kamloops")
+
+# --------------------------
+# Map function with blue pin + custom scale bar + compass + legend
+# --------------------------
+create_kamloops_map <- function(run_number, wildfire_data, hysplit_data, city_coords) {
+  subset_data <- hysplit_data %>% filter(run == run_number)
+  
+  leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
+    addProviderTiles(providers$Esri.WorldTopoMap) %>%
+    
+    # Add wildfire perimeters
+    addPolygons(data = wildfire_data, color = "orange", fillOpacity = 0.3, weight = 2) %>%
+    
+    # Add HYSPLIT lines
+    addPolylines(data = subset_data, color = "black", weight = 2.5) %>%
+    
+    # Add Kamloops pin
+    addMarkers(data = city_coords,
+               lng = ~lon, lat = ~lat,
+               label = ~name,
+               popup = ~name,
+               icon = icons(iconUrl = "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+                            iconWidth = 25, iconHeight = 41,
+                            iconAnchorX = 12, iconAnchorY = 41)) %>%
+    
+    # Custom HTML legend
+    addControl(
+      html = HTML(
+        "<div style='background:white; padding: 8px; border-radius:6px; box-shadow: 0 0 8px rgba(0,0,0,0.2);'>
+          <div><span style='display:inline-block; width:12px; height:12px; background:orange; margin-right:6px;'></span>2024 Fires</div>
+          <div><span style='display:inline-block; width:12px; height:2px; background:black; margin-right:6px;'></span>Trajectory (500 m AGL)</div>
+          <div><img src='https://cdn-icons-png.flaticon.com/512/684/684908.png' width='12' style='margin-right:6px;'>Kamloops</div>
+        </div>"
+      ),
+      position = "bottomright"
+    ) %>%
+    
+    # Bigger scale bar
+    addScaleBar(position = "bottomleft",
+                options = scaleBarOptions(imperial = TRUE, metric = TRUE, maxWidth = 300)) %>%
+    
+    # Compass rose
+    addControl(
+      html = "<div style='text-align:center;'>
+                <img src='https://upload.wikimedia.org/wikipedia/commons/6/6b/Compass_Rose_English_North.svg'
+                     style='width:60px;'>
+              </div>",
+      position = "topright"
+    )
+}
+
+# --------------------------
+# Generate & view maps
+# --------------------------
+kamloops_maps <- map(1:9, ~create_kamloops_map(.x, BC_allwildfire, kamloops_hysplits, kamloops_point))
+
+# View interactively
+kamloops_maps[[1]]
+kamloops_maps[[2]]
+kamloops_maps[[3]]
+kamloops_maps[[4]]
+kamloops_maps[[5]]
+kamloops_maps[[6]]
+kamloops_maps[[7]]
+kamloops_maps[[8]]
+kamloops_maps[[9]]
+
+# Export maps to HTML
+walk2(kamloops_maps, 1:9, ~saveWidget(.x, file = paste0("K_", .y, "_HYSPLIT_map.html")))
+
+
+##-------------------------
+#MAP ALL OF KELOWNA AND KAMLOOPS TOGETHER
+##-------------------------
+trajectory_colors <- c(
+  "#1B9E77",  # 1 - green-teal
+  "#D95F02",  # 2 - orange
+  "#7570B3",  # 3 - purple
+  "#E7298A",  # 4 - pink
+  "#66A61E",  # 5 - green
+  "#E6AB02",  # 6 - mustard
+  "#A6761D",  # 7 - brown
+  "#666666",  # 8 - gray
+  "#1F78B4"   # 9 - blue
+  )
+
+  trajectory_colors <- c(
+    "#1B9E77", "#D95F02", "#7570B3", "#E7298A", 
+    "#66A61E", "#E6AB02", "#A6761D", "#666666", "#1F78B4")
+  
+  kamloops_hysplits$color <- trajectory_colors[kamloops_hysplits$run]
+  kelowna_hysplits$color <- trajectory_colors[kelowna_hysplits$run]
+  
+#create combined map
+  create_combined_map <- function(hysplit_data, wildfire_data, city_coords, city_name, run_prefix = "") {
+    leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
+      addProviderTiles(providers$Esri.WorldTopoMap) %>%
+      
+      # Add wildfire perimeters
+      addPolygons(data = wildfire_data, color = "orange", fillOpacity = 0.3, weight = 2) %>%
+      
+      # Add HYSPLIT trajectories with run-specific colors
+      addPolylines(data = hysplit_data,
+                   color = ~color,
+                   weight = 2.5,
+                   label = ~paste0(run_prefix, run)) %>%
+      
+      # Add city marker
+      addMarkers(data = city_coords,
+                 lng = ~lon, lat = ~lat,
+                 label = ~name,
+                 popup = ~name,
+                 icon = icons(iconUrl = "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+                              iconWidth = 25, iconHeight = 41,
+                              iconAnchorX = 12, iconAnchorY = 41)) %>%
+      
+      # Custom legend with K_/KE_ prefix and pin icon
+      addControl(
+        html = HTML(paste0(
+          "<div style='background:white; padding:8px; border-radius:6px; box-shadow:0 0 8px rgba(0,0,0,0.2);'>",
+          "<div><span style='display:inline-block; width:12px; height:12px; background:orange; margin-right:6px;'></span>2024 Fires</div>",
+          paste0(
+            "<div><span style='display:inline-block; width:12px; height:12px; background:",
+            trajectory_colors,
+            "; margin-right:6px;'></span>", run_prefix, 1:9, "</div>",
+            collapse = ""
+          ),
+          "<div><img src='https://cdn-icons-png.flaticon.com/512/684/684908.png' width='12' style='margin-right:6px;'>", city_name, "</div>",
+          "</div>"
+        )),
+        position = "bottomright"
+      ) %>%
+      
+      # Bigger scale bar
+      addScaleBar(position = "bottomleft",
+                  options = scaleBarOptions(imperial = TRUE, metric = TRUE, maxWidth = 300)) %>%
+      
+      # NESW compass
+      addControl(
+        html = "<div style='text-align:center;'>
+                <img src='https://upload.wikimedia.org/wikipedia/commons/6/6b/Compass_Rose_English_North.svg'
+                     style='width:60px;'>
+              </div>",
+        position = "topright"
+      )
+  }
+  
+  
+# Kelowna point
+kelowna_point <- data.frame(
+  lat = 49.888,
+  lon = -119.496,
+  name = "Kelowna"
+)
+
+# Kamloops point
+kamloops_point <- data.frame(
+  lat = 50.66948,
+  lon = -120.3296,
+  name = "Kamloops"
+)
+
+# Create both maps
+kelowna_all_map <- create_combined_map(kelowna_hysplits, BC_allwildfire, kelowna_point, "Kelowna")
+kamloops_all_map <- create_combined_map(kamloops_hysplits, BC_allwildfire, kamloops_point, "Kamloops")
+
+# View in R
+kelowna_all_map
+kamloops_all_map
+
+# Export
+saveWidget(kelowna_all_map, file = "Kelowna_All_Trajectories.html")
+saveWidget(kamloops_all_map, file = "Kamloops_All_Trajectories.html")
